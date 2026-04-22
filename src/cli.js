@@ -7,7 +7,7 @@
  * Flow:
  *   1. Router session (read + bash + triage_report) → structured classification
  *   2. If FEATURE/PROJECT → Architect session (read + edit + write + bash) → PLAN.md
- *   3. If QUICK_FIX → log and exit
+ *   3. If QUICK_FIX → Operator session (read + edit + write + bash) → execute the task
  */
 
 import {
@@ -226,7 +226,7 @@ function parseTriageFromText(text) {
   /** @type {string[]} */
   let affectedPaths = [];
   const jsonPaths = text.match(
-    /affectedPaths[:\s]+(\[[^\]]*\])/s
+    /affectedPaths[:\s]+(\[[^\]]*])/s
   );
   if (jsonPaths) {
     try {
@@ -290,10 +290,33 @@ async function main() {
 
   // ── Phase B: Decision ────────────────────────────────────────────
   if (triage.classification === "QUICK_FIX") {
-    console.log("\n[Harness] QUICK_FIX detected. No plan needed. Exiting.");
-    console.log(`[Harness] Summary: ${triage.summary}`);
+    // ── Phase B1: Operator (Execute) ──────────────────────────────
     console.log(
-      `[Harness] Affected paths: ${triage.affectedPaths.join(", ")}`
+      `\n[Harness] QUICK_FIX detected. Handing off to Operator...\n`
+    );
+    console.log("[Harness] === Phase B1: Operator (Execute) ===\n");
+
+    const operatorPrompt = [
+      `## User Request`,
+      userRequest,
+      ``,
+      `## Triage Report`,
+      `- Classification: ${triage.classification}`,
+      `- Complexity: ${triage.complexity}`,
+      `- Summary: ${triage.summary}`,
+      `- Affected paths: ${triage.affectedPaths.join(", ")}`,
+      ``,
+      `Execute the task above. Inspect the current state, make the change or run the command, and verify the result.`,
+    ].join("\n");
+
+    await runSession({
+      agentName: "operator",
+      toolNames: ["read", "edit", "write", "bash"],
+      prompt: operatorPrompt,
+    });
+
+    console.log(
+      "\n[Harness] ✅ Operator session complete."
     );
     Deno.exit(0);
   }
