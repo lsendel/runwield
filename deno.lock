@@ -7,9 +7,13 @@
     "jsr:@std/path@1": "1.1.4",
     "jsr:@std/toml@^1.0.3": "1.0.11",
     "jsr:@std/yaml@^1.0.5": "1.1.0",
+    "npm:@joplin/turndown-plugin-gfm@^1.0.64": "1.0.64",
     "npm:@mariozechner/pi-agent-core@~0.68.1": "0.68.1_zod@4.3.6",
     "npm:@mariozechner/pi-ai@~0.68.1": "0.68.1_zod@4.3.6",
-    "npm:@mariozechner/pi-coding-agent@~0.68.1": "0.68.1_zod@4.3.6"
+    "npm:@mariozechner/pi-coding-agent@~0.68.1": "0.68.1_zod@4.3.6",
+    "npm:@plannotator/pi-extension@*": "0.19.0_@mariozechner+pi-coding-agent@0.68.1__zod@4.3.6",
+    "npm:@sinclair/typebox@~0.34.41": "0.34.49",
+    "npm:turndown@^7.2.4": "7.2.4"
   },
   "jsr": {
     "@std/collections@1.1.7": {
@@ -531,6 +535,9 @@
         "ws"
       ]
     },
+    "@joplin/turndown-plugin-gfm@1.0.64": {
+      "integrity": "sha512-8GJ7f9OenE3zkSVII5B6qzIkvgF7C/a20gaASEjM6jWPLPJFFQ2nQ3Ou/kXH1mPUTs9dC9VYs8QXVPvZabKXBQ=="
+    },
     "@mariozechner/clipboard-darwin-arm64@0.3.2": {
       "integrity": "sha512-uBf6K7Je1ihsgvmWxA8UCGCeI+nbRVRXoarZdLjl6slz94Zs1tNKFZqx7aCI5O1i3e0B6ja82zZ06BWrl0MCVw==",
       "os": ["darwin"],
@@ -678,6 +685,17 @@
         "ws",
         "zod",
         "zod-to-json-schema"
+      ]
+    },
+    "@mixmark-io/domino@2.2.0": {
+      "integrity": "sha512-Y28PR25bHXUg88kCV7nivXrP2Nj2RueZ3/l/jdx6J9f8J4nsEGcgX0Qe6lt7Pa+J79+kPiJU3LguR6O/6zrLOw=="
+    },
+    "@plannotator/pi-extension@0.19.0_@mariozechner+pi-coding-agent@0.68.1__zod@4.3.6": {
+      "integrity": "sha512-s3lRdl4Pzv5jfLGV5BXQdydJKgez4tTTCJBUdzrja0MeDIBwKl1w3kHCtPkv2xL6wbVqihwGi22dDkflu5Dulw==",
+      "dependencies": [
+        "@joplin/turndown-plugin-gfm",
+        "@mariozechner/pi-coding-agent",
+        "turndown"
       ]
     },
     "@protobufjs/aspromise@1.1.2": {
@@ -1797,6 +1815,12 @@
     "tslib@2.8.1": {
       "integrity": "sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w=="
     },
+    "turndown@7.2.4": {
+      "integrity": "sha512-I8yFsfRzmzK0WV1pNNOA4A7y4RDfFxPRxb3t+e3ui14qSGOxGtiSP6GjeX+Y6CHb7HYaFj7ECUD7VE5kQMZWGQ==",
+      "dependencies": [
+        "@mixmark-io/domino"
+      ]
+    },
     "uint8array-extras@1.5.0": {
       "integrity": "sha512-rvKSBiC5zqCCiDZ9kAOszZcDvdAHwwIKJG33Ykj43OKcWsnmcBRL09YTU4nOeHZ8Y2a7l1MgTd08SBe9A8Qj6A=="
     },
@@ -1873,10 +1897,12 @@
     "dependencies": [
       "jsr:@std/front-matter@1",
       "jsr:@std/path@1",
+      "npm:@joplin/turndown-plugin-gfm@^1.0.64",
       "npm:@mariozechner/pi-agent-core@~0.68.1",
       "npm:@mariozechner/pi-ai@~0.68.1",
       "npm:@mariozechner/pi-coding-agent@~0.68.1",
-      "npm:@sinclair/typebox@~0.34.41"
+      "npm:@sinclair/typebox@~0.34.41",
+      "npm:turndown@^7.2.4"
     ]
   }
 }

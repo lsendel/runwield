@@ -25,7 +25,7 @@ memory, and treating the SDLC as a series of intentional gates.
 The system must automatically triage incoming requests into one of three paths:
 
 - **Quick Fix:** Troubleshooting and rapid changes with no upfront decisions.
-  Uses Debugger or Execution agents.
+  Uses Debugger or Execution agents. Exception for operational tasks (e.g., "deploy to prod") which don't require a plan.
 - **Feature:** Requires upfront clarification and a structured plan (inspired by
   Plannotator.ai). Can be decomposed into dependent tasks.
 - **Project:** Large-scale changes or new initiatives. Requires a dedicated
@@ -44,7 +44,7 @@ The system must automatically triage incoming requests into one of three paths:
 ### 3.3 Dynamic Agent Specialization ("The Forge")
 
 - **Base Agents:** Systems Architect, Product Manager, Documentation Writer,
-  Coder, Debugger, Test Writer, Security Reviewer.
+  Coder, Debugger, Test Writer, Security Reviewer, Operator.
 - **Customization:** Users can "plug in" skills to create specialized agents
   (e.g., "Playwright Test Writer").
 - **Self-Evolution:** The agent must be capable of building its own
