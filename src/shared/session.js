@@ -116,13 +116,15 @@ export async function runSession(
         }
         break;
       case "tool_execution_start":
-        console.log(
-          `\n  [Tool] ${event.toolName}${
-            event.toolName === "bash"
-              ? `\n    Command: ${event.args?.command || "N/A"}`
-              : ""
-          }`,
-        );
+        const filePath = getFilePathForTool(event.toolName, event.args);
+        if (filePath) {
+          console.log(`\n  [Tool] ${event.toolName}\n  📄 ${filePath}${event.toolName === "bash" ? "" : ""}`);
+        } else {
+          console.log(`\n  [Tool] ${event.toolName}`);
+        }
+        if (event.toolName === "bash") {
+          console.log(`    Command: ${event.args?.command || "N/A"}`);
+        }
         break;
       case "tool_execution_end":
         console.log(
@@ -136,4 +138,24 @@ export async function runSession(
   await session.agent.waitForIdle();
 
   return session.agent.state.messages;
+}
+
+/**
+ * Extract file path from tool arguments for read/edit/write tools.
+ *
+ * @param {string} toolName
+ * @param {Record<string, unknown>} args
+ * @returns {string | null}
+ */
+function getFilePathForTool(toolName, args) {
+  if (!args) return null;
+
+  switch (toolName) {
+    case "read":
+    case "edit":
+    case "write":
+      return args.path || args.file_path || null;
+    default:
+      return null;
+  }
 }
