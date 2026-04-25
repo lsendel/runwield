@@ -3,11 +3,14 @@
  * Harness — Plan-by-Default Coding Harness
  *
  * Usage:
+ *   har "<user request>"
+ *   har router "<user request>"
+ *   har resume <plan-name-or-path>
+ *   har plans
+ *   har --help
+ *
+ * Source-run fallback for contributors:
  *   deno run -A src/cli.js "<user request>"
- *   deno run -A src/cli.js router "<user request>"
- *   deno run -A src/cli.js resume <plan-name-or-path>
- *   deno run -A src/cli.js plans
- *   deno run -A src/cli.js --help
  */
 
 import { parseArgs } from "@std/cli/parse-args";

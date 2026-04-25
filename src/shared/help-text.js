@@ -3,73 +3,79 @@
  * Shared help text rendering for global and per-command usage.
  */
 
-import { COMMAND_NAMES } from "../constants.js";
+import { CLI_BIN, COMMAND_NAMES, DEV_CLI_RUN } from "../constants.js";
 
 const COMMAND_SUMMARIES = {
-    [COMMAND_NAMES.ROUTER]: "Route a request through triage and execution/planning flow (default command).",
-    [COMMAND_NAMES.RESUME]: "Resume work from a saved plan by name or file path.",
-    [COMMAND_NAMES.PLANS]: "List saved plans.",
-    [COMMAND_NAMES.HELP]: "Show global help or help for a specific command.",
+  [COMMAND_NAMES.ROUTER]:
+    "Route a request through triage and execution/planning flow (default command).",
+  [COMMAND_NAMES.RESUME]: "Resume work from a saved plan by name or file path.",
+  [COMMAND_NAMES.PLANS]: "List saved plans.",
+  [COMMAND_NAMES.HELP]: "Show global help or help for a specific command.",
 };
 
+/** @param {...string} parts */
+const bin = (...parts) => [CLI_BIN, ...parts].join(" ");
+
+/** @type {Record<string, { usage: string[]; notes: string[] }>} */
 const COMMAND_DETAILS = {
-    [COMMAND_NAMES.ROUTER]: {
-        usage: [
-            'deno run -A src/cli.js "<user request>"',
-            'deno run -A src/cli.js router "<user request>"',
-            "deno run -A src/cli.js router --help",
-        ],
-        notes: [
-            "This is the default command when no explicit command is provided.",
-            "Equivalent forms: cli.js \"prompt\" and cli.js router \"prompt\".",
-        ],
-    },
-    [COMMAND_NAMES.RESUME]: {
-        usage: [
-            "deno run -A src/cli.js resume <plan-name>",
-            "deno run -A src/cli.js resume plans/<plan>.md",
-            "deno run -A src/cli.js resume --help",
-        ],
-        notes: [
-            "If the plan is approved, you can proceed, re-open review, or inspect details.",
-        ],
-    },
-    [COMMAND_NAMES.PLANS]: {
-        usage: [
-            "deno run -A src/cli.js plans",
-            "deno run -A src/cli.js plans --help",
-        ],
-        notes: [
-            "Shows status, classification, complexity, summary, and creation time.",
-        ],
-    },
-    [COMMAND_NAMES.HELP]: {
-        usage: [
-            "deno run -A src/cli.js --help",
-            "deno run -A src/cli.js help",
-            "deno run -A src/cli.js help <command>",
-        ],
-        notes: [],
-    },
+  [COMMAND_NAMES.ROUTER]: {
+    usage: [
+      `${bin('"<user request>"')}`,
+      `${bin('router "<user request>"')}`,
+      `${bin("router --help")}`,
+    ],
+    notes: [
+      "This is the default command when no explicit command is provided.",
+      `Source-run fallback: ${DEV_CLI_RUN} \"<user request>\"`,
+    ],
+  },
+  [COMMAND_NAMES.RESUME]: {
+    usage: [
+      `${bin("resume <plan-name>")}`,
+      `${bin("resume plans/<plan>.md")}`,
+      `${bin("resume --help")}`,
+    ],
+    notes: [
+      "If the plan is approved, you can proceed, re-open review, or inspect details.",
+    ],
+  },
+  [COMMAND_NAMES.PLANS]: {
+    usage: [
+      `${bin("plans")}`,
+      `${bin("plans --help")}`,
+    ],
+    notes: [
+      "Shows status, classification, complexity, summary, and creation time.",
+    ],
+  },
+  [COMMAND_NAMES.HELP]: {
+    usage: [
+      `${bin("--help")}`,
+      `${bin("help")}`,
+      `${bin("help <command>")}`,
+    ],
+    notes: [],
+  },
 };
 
 /**
  * Print global CLI usage/help text.
  */
 export function printGlobalHelp() {
-    console.log("Harness — Plan-by-Default Coding Harness\n");
-    console.log("Usage:");
-    console.log('  deno run -A src/cli.js "<user request>"');
-    console.log("  deno run -A src/cli.js <command> [args]\n");
+  console.log("Harness — Plan-by-Default Coding Harness\n");
+  console.log("Usage:");
+  console.log(`  ${bin('"<user request>"')}`);
+  console.log(`  ${bin("<command> [args]")}\n`);
 
-    console.log("Commands:");
-    for (const [name, summary] of Object.entries(COMMAND_SUMMARIES)) {
-        console.log(`  ${name.padEnd(8)} ${summary}`);
-    }
+  console.log("Commands:");
+  for (const [name, summary] of Object.entries(COMMAND_SUMMARIES)) {
+    console.log(`  ${name.padEnd(8)} ${summary}`);
+  }
 
-    console.log("\nHelp:");
-    console.log("  deno run -A src/cli.js --help");
-    console.log("  deno run -A src/cli.js help <command>");
+  console.log("\nHelp:");
+  console.log(`  ${bin("--help")}`);
+  console.log(`  ${bin("help <command>")}`);
+  console.log(`\nDeveloper fallback: ${DEV_CLI_RUN} --help`);
 }
 
 /**
@@ -79,22 +85,22 @@ export function printGlobalHelp() {
  * @returns {boolean} true if command exists, false otherwise.
  */
 export function printCommandHelp(commandName) {
-    const details = COMMAND_DETAILS[commandName];
-    if (!details) return false;
+  const details = COMMAND_DETAILS[commandName];
+  if (!details) return false;
 
-    console.log(`Usage (${commandName}):`);
-    for (const line of details.usage) {
-        console.log(`  ${line}`);
+  console.log(`Usage (${commandName}):`);
+  for (const line of details.usage) {
+    console.log(`  ${line}`);
+  }
+
+  if (details.notes.length > 0) {
+    console.log("\nNotes:");
+    for (const note of details.notes) {
+      console.log(`  - ${note}`);
     }
+  }
 
-    if (details.notes.length > 0) {
-        console.log("\nNotes:");
-        for (const note of details.notes) {
-            console.log(`  - ${note}`);
-        }
-    }
-
-    return true;
+  return true;
 }
 
 /**
@@ -104,6 +110,6 @@ export function printCommandHelp(commandName) {
  * @returns {boolean}
  */
 export function isKnownCommand(commandName) {
-    if (!commandName) return false;
-    return commandName in COMMAND_SUMMARIES;
+  if (!commandName) return false;
+  return commandName in COMMAND_SUMMARIES;
 }

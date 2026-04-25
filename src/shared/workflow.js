@@ -47,7 +47,7 @@ export async function findLatestPlan() {
  * @param {string} opts.agentName
  * @param {string[]} opts.toolNames
  * @param {string} opts.initialPrompt
- * @param {Partial<import('../../plan-store.js').PlanFrontMatter>} opts.triageMeta
+ * @param {Partial<import('../plan-store.js').PlanFrontMatter>} opts.triageMeta
  * @param {number} [opts.maxRevisions=5]
  * @returns {Promise<{ planName: string, planPath: string, approved: true } | null>}
  */
@@ -169,7 +169,7 @@ export function extractTasks(planContent) {
  * Execute an approved plan.
  *
  * @param {string} planName
- * @param {Partial<import('../../plan-store.js').PlanFrontMatter>} triageMeta
+ * @param {Partial<import('../plan-store.js').PlanFrontMatter>} triageMeta
  */
 export async function executePlan(planName, triageMeta) {
     const plan = await loadPlan(CWD, planName);

@@ -1,9 +1,11 @@
 # Harness
 
-Harness is an opinionated, **plan-by-default coding harness** built on top of Pi agents.
+Harness is an opinionated, **plan-by-default coding harness** built on top of Pi
+agents.
 
-It routes incoming requests through triage, creates reviewable plans for non-trivial work, runs an interactive 
-Plannotator approval loop, and then executes approved work with specialized agents.
+It routes incoming requests through triage, creates reviewable plans for
+non-trivial work, runs an interactive Plannotator approval loop, and then
+executes approved work with specialized agents.
 
 ## Why Harness
 
@@ -55,56 +57,67 @@ flowchart TD
 
 All agent prompts live in [`.pi/agents/`](.pi/agents/).
 
-| Agent | Purpose | Prompt |
-|---|---|---|
-| Router | Classifies incoming requests and emits structured triage data. | [router.md](.pi/agents/router.md) |
-| Operator | Executes small, low-risk `QUICK_FIX` tasks directly. | [operator.md](.pi/agents/operator.md) |
-| Planner | Produces iterative, execution-ready plans for `FEATURE` requests. | [planner.md](.pi/agents/planner.md) |
-| Architect | Produces deeper, project-scale plans (including task decomposition). | [architect.md](.pi/agents/architect.md) |
-| Engineer | Implements approved plans or assigned tasks in code. | [engineer.md](.pi/agents/engineer.md) |
-| Tester | Writes/updates tests for approved changes. | [tester.md](.pi/agents/tester.md) |
-| Doc Writer | Creates or updates technical documentation artifacts. | [doc-writer.md](.pi/agents/doc-writer.md) |
-| Explorer | Performs focused vertical-slice investigation when used. | [explorer.md](.pi/agents/explorer.md) |
+| Agent      | Purpose                                                              | Prompt                                    |
+| ---------- | -------------------------------------------------------------------- | ----------------------------------------- |
+| Router     | Classifies incoming requests and emits structured triage data.       | [router.md](.pi/agents/router.md)         |
+| Operator   | Executes small, low-risk `QUICK_FIX` tasks directly.                 | [operator.md](.pi/agents/operator.md)     |
+| Planner    | Produces iterative, execution-ready plans for `FEATURE` requests.    | [planner.md](.pi/agents/planner.md)       |
+| Architect  | Produces deeper, project-scale plans (including task decomposition). | [architect.md](.pi/agents/architect.md)   |
+| Engineer   | Implements approved plans or assigned tasks in code.                 | [engineer.md](.pi/agents/engineer.md)     |
+| Tester     | Writes/updates tests for approved changes.                           | [tester.md](.pi/agents/tester.md)         |
+| Doc Writer | Creates or updates technical documentation artifacts.                | [doc-writer.md](.pi/agents/doc-writer.md) |
+| Explorer   | Performs focused vertical-slice investigation when used.             | [explorer.md](.pi/agents/explorer.md)     |
 
 ---
 
 ## Runtime & Dependencies
 
-- Runtime: **Deno**
+- End-user runtime: **Standalone `har` binary** (no Deno required)
+- Contributor/dev runtime: **Deno**
 - Core libraries:
   - `@mariozechner/pi-coding-agent`
   - `@mariozechner/pi-ai`
   - `@mariozechner/pi-agent-core`
 - Plan review integration:
-  - `@gandazgul/plannotator-pi-extension-compiled`
-
-> Current repo maps the compiled Plannotator package locally in `deno.json` from a sibling directory:
->
-> `"@gandazgul/plannotator-pi-extension-compiled": "../plannotator-pi-extension-compiled/dist/index.mjs"`
->
-> `"@gandazgul/plannotator-pi-extension-compiled/server": "../plannotator-pi-extension-compiled/dist/server.mjs"`
+  - `@gandazgul/plannotator-pi-extension-compiled` (npm package)
 
 ---
 
-## Setup
+## Installation
 
-### 1) Install Deno
+### macOS / Linux (recommended)
 
-Follow: https://docs.deno.com/runtime/getting_started/installation/
+```bash
+curl -fsSL https://raw.githubusercontent.com/<owner>/harness/main/install.sh | bash
+```
 
-### 2) Install dependencies
+If your fork/repo name differs, set `HAR_REPO`:
 
-From project root:
+```bash
+curl -fsSL https://raw.githubusercontent.com/<owner>/<repo>/main/install.sh | HAR_REPO=<owner>/<repo> bash
+```
+
+Then verify:
+
+```bash
+har --help
+```
+
+### Source-run (contributors)
+
+1. Install Deno: https://docs.deno.com/runtime/getting_started/installation/
+
+2. Cache deps:
 
 ```bash
 deno cache src/cli.js
 ```
 
-(Or run any task below; Deno will fetch on demand.)
+3. Run from source:
 
-### 3) Ensure agent prompts exist
-
-Harness expects `.pi/agents/*.md` files (already present in this repo).
+```bash
+deno run -A src/cli.js --help
+```
 
 ---
 
@@ -113,30 +126,30 @@ Harness expects `.pi/agents/*.md` files (already present in this repo).
 ### Run a new request (default router command)
 
 ```bash
-deno run -A src/cli.js "your request here"
+har "your request here"
 ```
 
 Equivalent explicit form:
 
 ```bash
-deno run -A src/cli.js router "your request here"
+har router "your request here"
 ```
 
 Examples:
 
 ```bash
-deno run -A src/cli.js "fix typo in README"
-deno run -A src/cli.js router "add JWT auth to API"
-deno run -A src/cli.js "refactor data layer and add migration plan"
+har "fix typo in README"
+har router "add JWT auth to API"
+har "refactor data layer and add migration plan"
 ```
 
 ### Show help
 
 ```bash
-deno run -A src/cli.js --help
-deno run -A src/cli.js help
-deno run -A src/cli.js help resume
-deno run -A src/cli.js resume --help
+har --help
+har help
+har help resume
+har resume --help
 ```
 
 ### Resume a saved plan
@@ -144,19 +157,19 @@ deno run -A src/cli.js resume --help
 By plan name:
 
 ```bash
-deno run -A src/cli.js resume integrate-mnemosyne
+har resume integrate-mnemosyne
 ```
 
 By path:
 
 ```bash
-deno run -A src/cli.js resume plans/integrate-mnemosyne.md
+har resume plans/integrate-mnemosyne.md
 ```
 
 ### List saved plans
 
 ```bash
-deno run -A src/cli.js plans
+har plans
 ```
 
 ---
@@ -169,6 +182,7 @@ Defined in [`deno.json`](deno.json):
 deno task cli "your request"
 deno task resume <plan-name>
 deno task check
+deno task compile
 ```
 
 ---
@@ -218,21 +232,21 @@ Harness updates these statuses during the review loop and resume flow.
 
 ### Plan review UI does not open
 
-- Confirm `src/tools/submit-plan.js` can resolve
-  `@gandazgul/plannotator-pi-extension-compiled/server`.
-- If using local mapping, ensure sibling folder `../plannotator-pi-extension-compiled/` exists and is built.
-- Verify the package contains `plannotator.html` and `review-editor.html`.
+- Confirm `src/tools/submit-plan.js` can resolve:
+  - `@gandazgul/plannotator-pi-extension-compiled/server`
+  - `@gandazgul/plannotator-pi-extension-compiled/assets`
+- Verify you are on a version where the package exports `plannotatorHtml`.
 
 ### Resume can’t find your plan
 
-- Use `deno run -A src/cli.js plans` to list available plan names.
+- Use `har plans` to list available plan names.
 - Use `plans/<name>.md` path form if needed.
 - Don’t prefix with `@plans/...`; use `plans/...`.
 
 ### Agent behavior looks off
 
-- Inspect/edit the relevant agent prompt in `.pi/agents/`.
-- Re-run the request; prompts are loaded from disk each run.
+- Installed binaries use bundled default prompts.
+- For source runs, inspect/edit the relevant prompt in `.pi/agents/` and re-run.
 
 ---
 

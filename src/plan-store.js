@@ -10,7 +10,7 @@
 
 import { extractYaml, test as hasFrontMatter } from "@std/front-matter";
 import { join, basename, resolve } from "@std/path";
-import { PLANS_DIR_NAME } from "./constants.js";
+import { CLI_BIN, PLANS_DIR_NAME } from "./constants.js";
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
@@ -272,6 +272,6 @@ export async function resolvePlan(cwd, arg) {
     }
 
     const plan = await loadPlan(cwd, arg);
-    if (!plan) throw new Error(`Plan not found: ${arg}. Use 'harness' without arguments to list plans.`);
+    if (!plan) throw new Error(`Plan not found: ${arg}. Use '${CLI_BIN} plans' to list available plans.`);
     return { ...plan, planName: arg };
 }

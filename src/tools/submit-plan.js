@@ -12,7 +12,7 @@ import {
     updatePlanStatus,
 } from "../plan-store.js";
 import { startPlanReviewServer } from "@gandazgul/plannotator-pi-extension-compiled/server";
-import { readFileSync } from "node:fs";
+import { plannotatorHtml } from "@gandazgul/plannotator-pi-extension-compiled/assets";
 
 // ─── Browser Helpers ───────────────────────────────────────────────────
 
@@ -106,11 +106,8 @@ export async function submitPlanForReview({
     const planWithFm = injectFrontMatter(body, fmOverrides);
     await Deno.writeTextFile(planPath, planWithFm);
 
-    // 3. Load HTML asset from compiled package root
-    // server import resolves to .../dist/server.mjs, so ../plannotator.html is package root
-    const serverModuleUrl = import.meta.resolve("@gandazgul/plannotator-pi-extension-compiled/server");
-    const htmlUrl = new URL("../plannotator.html", serverModuleUrl);
-    const htmlContent = readFileSync(htmlUrl, "utf-8");
+    // 3. Use HTML embedded in package exports (compile-safe; no runtime fs lookup).
+    const htmlContent = plannotatorHtml;
 
     console.log(`\n[Harness] Opening plan review UI for: ${planName}`);
     console.log(`[Harness] Plan file: ${planPath}`);

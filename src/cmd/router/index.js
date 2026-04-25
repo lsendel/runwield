@@ -4,7 +4,7 @@
  */
 
 import { parseArgs } from "@std/cli/parse-args";
-import { CWD, TOOLSETS } from "../../constants.js";
+import { CLI_BIN, CWD, TOOLSETS } from "../../constants.js";
 import { ensurePlansDir } from "../../plan-store.js";
 import { triageReportTool } from "../../tools/triage-report.js";
 import { runSession } from "../../shared/session.js";
@@ -123,7 +123,7 @@ export async function runRouterCommand(argv) {
             if (action === "proceed") {
                 await executePlan(result.planName, triage);
             } else {
-                console.log(`\n[Harness] Plan saved. Resume later with: deno run -A src/cli.js resume ${result.planName}`);
+                console.log(`\n[Harness] Plan saved. Resume later with: ${CLI_BIN} resume ${result.planName}`);
             }
         }
         return;
@@ -161,7 +161,7 @@ export async function runRouterCommand(argv) {
             if (action === "proceed") {
                 await executePlan(result.planName, triage);
             } else {
-                console.log(`\n[Harness] Plan saved. Resume later with: deno run -A src/cli.js resume ${result.planName}`);
+                console.log(`\n[Harness] Plan saved. Resume later with: ${CLI_BIN} resume ${result.planName}`);
             }
         }
     }

@@ -4,7 +4,7 @@
  */
 
 import { parseArgs } from "@std/cli/parse-args";
-import { CWD, TOOLSETS } from "../../constants.js";
+import { CLI_BIN, CWD, TOOLSETS } from "../../constants.js";
 import { resolvePlan } from "../../plan-store.js";
 import { submitPlanForReview } from "../../tools/submit-plan.js";
 import { readUserInput } from "../../shared/input.js";
@@ -34,7 +34,7 @@ export async function runResumeCommand(argv) {
 
     const [planArg] = parsed._.map(String);
     if (!planArg) {
-        console.error("Usage: deno run -A src/cli.js resume <plan-name-or-path>");
+        console.error(`Usage: ${CLI_BIN} resume <plan-name-or-path>`);
         Deno.exit(1);
     }
 
@@ -71,11 +71,11 @@ export async function runResumeCommand(argv) {
                 if (action === "proceed") {
                     await executePlan(plan.planName, plan.attrs);
                 } else {
-                    console.log(`\n[Harness] Plan saved. Resume later with: deno run -A src/cli.js resume ${plan.planName}`);
+                    console.log(`\n[Harness] Plan saved. Resume later with: ${CLI_BIN} resume ${plan.planName}`);
                 }
             } else {
                 console.log("\n[Harness] Plan denied. To continue the revision loop, run:");
-                console.log(`  deno run -A src/cli.js resume ${plan.planName}`);
+                console.log(`  ${CLI_BIN} resume ${plan.planName}`);
             }
             return;
         }
@@ -113,7 +113,7 @@ export async function runResumeCommand(argv) {
         if (action === "proceed") {
             await executePlan(result.planName, triageMeta);
         } else {
-            console.log(`\n[Harness] Plan saved. Resume later with: deno run -A src/cli.js resume ${result.planName}`);
+            console.log(`\n[Harness] Plan saved. Resume later with: ${CLI_BIN} resume ${result.planName}`);
         }
     }
 }
