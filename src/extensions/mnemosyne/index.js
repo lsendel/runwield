@@ -108,6 +108,7 @@ export default function mnemosyneExtension(pi) {
 When to use memory:
 - Search memory when past context would help answer the user's request.
 - Store concise summaries of important decisions, preferences, and patterns.
+- Delete outdated or incorrect memories by their ID (shown in [brackets] in recall/list output).
 - Use **core** for facts that should always be in context (project architecture, key conventions, user preferences).
 - Use **global** variants for cross-project preferences (coding style, tool choices).
 - At the end of a session, store any relevant memories for future sessions.`;
@@ -272,6 +273,25 @@ When to use memory:
 
       return {
         content: [{ type: "text", text: result.trim() }],
+        details: params,
+      };
+    },
+  });
+
+  pi.registerTool({
+    name: "memory_delete",
+    label: "Memory Delete",
+    description: "Delete an outdated or incorrect memory by its document ID.",
+    promptSnippet: "Delete an outdated memory by its document ID",
+    parameters: Type.Object({
+      id: Type.Number({ description: "Document ID to delete" }),
+    }),
+    async execute(_toolCallId, params) {
+      const result = await mnemosyne("delete", String(params.id));
+      invalidateCache();
+
+      return {
+        content: [{ type: "text", text: result.trim() || "Memory deleted." }],
         details: params,
       };
     },

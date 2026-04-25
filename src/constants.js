@@ -54,6 +54,7 @@ export const MEMORY_TOOLSET = Object.freeze([
   "memory_recall_global",
   "memory_store",
   "memory_store_global",
+  "memory_delete",
 ]);
 
 /**
