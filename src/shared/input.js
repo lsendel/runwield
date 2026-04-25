@@ -11,6 +11,12 @@
  */
 export async function readUserInput(maxBytes = 256) {
   const buf = new Uint8Array(maxBytes);
-  await Deno.stdin.read(buf);
-  return new TextDecoder().decode(buf).trim();
+  const bytesRead = await Deno.stdin.read(buf);
+
+  if (bytesRead === null) return "";
+
+  return new TextDecoder()
+    .decode(buf.subarray(0, bytesRead))
+    .replaceAll("\0", "")
+    .trim();
 }
