@@ -15,8 +15,8 @@ import { runRouterCommand } from "./router/index.js";
 
 /** @type {Record<string, CommandHandler>} */
 export const commandRegistry = {
-    [COMMAND_NAMES.ROUTER]: runRouterCommand,
-    [COMMAND_NAMES.RESUME]: runResumeCommand,
-    [COMMAND_NAMES.PLANS]: runPlansCommand,
-    [COMMAND_NAMES.HELP]: runHelpCommand,
+  [COMMAND_NAMES.ROUTER]: runRouterCommand,
+  [COMMAND_NAMES.RESUME]: runResumeCommand,
+  [COMMAND_NAMES.PLANS]: runPlansCommand,
+  [COMMAND_NAMES.HELP]: runHelpCommand,
 };

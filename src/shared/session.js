@@ -118,7 +118,11 @@ export async function runSession(
       case "tool_execution_start":
         const filePath = getFilePathForTool(event.toolName, event.args);
         if (filePath) {
-          console.log(`\n  [Tool] ${event.toolName}\n  📄 ${filePath}${event.toolName === "bash" ? "" : ""}`);
+          console.log(
+            `\n  [Tool] ${event.toolName}\n  📄 ${filePath}${
+              event.toolName === "bash" ? "" : ""
+            }`,
+          );
         } else {
           console.log(`\n  [Tool] ${event.toolName}`);
         }

@@ -17,6 +17,7 @@
     "@joplin/turndown-plugin-gfm": "npm:@joplin/turndown-plugin-gfm@^1.0.64"
   },
   "tasks": {
+    "ci": "deno task check && deno test && deno lint && deno fmt --check",
     "cli": "deno run -A src/cli.js",
     "check": "deno check src/cli.js",
     "resume": "deno run -A src/cli.js resume",

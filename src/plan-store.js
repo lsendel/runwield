@@ -9,7 +9,7 @@
  */
 
 import { extractYaml, test as hasFrontMatter } from "@std/front-matter";
-import { join, basename, resolve } from "@std/path";
+import { basename, join, resolve } from "@std/path";
 import { CLI_BIN, PLANS_DIR_NAME } from "./constants.js";
 
 // ─── Helpers ──────────────────────────────────────────────────────────
@@ -20,7 +20,7 @@ import { CLI_BIN, PLANS_DIR_NAME } from "./constants.js";
  * @returns {string}
  */
 export function getPlansDir(cwd) {
-    return join(cwd, PLANS_DIR_NAME);
+  return join(cwd, PLANS_DIR_NAME);
 }
 
 /**
@@ -29,13 +29,13 @@ export function getPlansDir(cwd) {
  * @returns {Promise<string>} The plans directory path
  */
 export async function ensurePlansDir(cwd) {
-    const dir = getPlansDir(cwd);
-    try {
-        await Deno.mkdir(dir, { recursive: true });
-    } catch {
-        // already exists, fine
-    }
-    return dir;
+  const dir = getPlansDir(cwd);
+  try {
+    await Deno.mkdir(dir, { recursive: true });
+  } catch {
+    // already exists, fine
+  }
+  return dir;
 }
 
 // ─── Front Matter ─────────────────────────────────────────────────────
@@ -57,13 +57,13 @@ export async function ensurePlansDir(cwd) {
  * @type {PlanFrontMatter}
  */
 const DEFAULT_FRONT_MATTER = {
-    classification: "FEATURE",
-    complexity: "MEDIUM",
-    summary: "",
-    affectedPaths: [],
-    createdAt: new Date().toISOString(),
-    status: "draft",
-    origin: "external",
+  classification: "FEATURE",
+  complexity: "MEDIUM",
+  summary: "",
+  affectedPaths: [],
+  createdAt: new Date().toISOString(),
+  status: "draft",
+  origin: "external",
 };
 
 /**
@@ -72,24 +72,24 @@ const DEFAULT_FRONT_MATTER = {
  * @returns {string}
  */
 function formatFrontMatter(fm) {
-    const lines = ["---"];
-    lines.push(`classification: "${fm.classification}"`);
-    lines.push(`complexity: "${fm.complexity}"`);
-    lines.push(`summary: "${fm.summary.replace(/"/g, '\\"')}"`);
-    lines.push(`affectedPaths:`);
-    if (fm.affectedPaths.length === 0) {
-        lines.push(`  []`);
-    } else {
-        for (const p of fm.affectedPaths) {
-            lines.push(`  - "${p}"`);
-        }
+  const lines = ["---"];
+  lines.push(`classification: "${fm.classification}"`);
+  lines.push(`complexity: "${fm.complexity}"`);
+  lines.push(`summary: "${fm.summary.replace(/"/g, '\\"')}"`);
+  lines.push(`affectedPaths:`);
+  if (fm.affectedPaths.length === 0) {
+    lines.push(`  []`);
+  } else {
+    for (const p of fm.affectedPaths) {
+      lines.push(`  - "${p}"`);
     }
-    lines.push(`createdAt: "${fm.createdAt}"`);
-    if (fm.updatedAt) lines.push(`updatedAt: "${fm.updatedAt}"`);
-    lines.push(`status: "${fm.status}"`);
-    if (fm.origin) lines.push(`origin: "${fm.origin}"`);
-    lines.push("---");
-    return lines.join("\n");
+  }
+  lines.push(`createdAt: "${fm.createdAt}"`);
+  if (fm.updatedAt) lines.push(`updatedAt: "${fm.updatedAt}"`);
+  lines.push(`status: "${fm.status}"`);
+  if (fm.origin) lines.push(`origin: "${fm.origin}"`);
+  lines.push("---");
+  return lines.join("\n");
 }
 
 /**
@@ -101,28 +101,35 @@ function formatFrontMatter(fm) {
  * @returns {string} The markdown with front matter
  */
 export function injectFrontMatter(markdown, overrides = {}) {
-    /** @type {Partial<PlanFrontMatter>} */
-    let existingFm = {};
-    let body = markdown;
+  /** @type {Partial<PlanFrontMatter>} */
+  let existingFm = {};
+  let body = markdown;
 
-    if (hasFrontMatter(markdown)) {
-        const { attrs, body: b } = extractYaml(markdown);
-        existingFm = (attrs || {});
-        body = b;
-    }
+  if (hasFrontMatter(markdown)) {
+    const { attrs, body: b } = extractYaml(markdown);
+    existingFm = attrs || {};
+    body = b;
+  }
 
-    const fm = {
-        classification: overrides.classification || existingFm.classification || DEFAULT_FRONT_MATTER.classification,
-        complexity: overrides.complexity || existingFm.complexity || DEFAULT_FRONT_MATTER.complexity,
-        summary: overrides.summary || existingFm.summary || DEFAULT_FRONT_MATTER.summary,
-        affectedPaths: overrides.affectedPaths || existingFm.affectedPaths || DEFAULT_FRONT_MATTER.affectedPaths,
-        createdAt: overrides.createdAt || existingFm.createdAt || DEFAULT_FRONT_MATTER.createdAt,
-        updatedAt: overrides.updatedAt || existingFm.updatedAt || new Date().toISOString(),
-        status: overrides.status || existingFm.status || DEFAULT_FRONT_MATTER.status,
-        origin: overrides.origin || existingFm.origin || "harness",
-    };
+  const fm = {
+    classification: overrides.classification || existingFm.classification ||
+      DEFAULT_FRONT_MATTER.classification,
+    complexity: overrides.complexity || existingFm.complexity ||
+      DEFAULT_FRONT_MATTER.complexity,
+    summary: overrides.summary || existingFm.summary ||
+      DEFAULT_FRONT_MATTER.summary,
+    affectedPaths: overrides.affectedPaths || existingFm.affectedPaths ||
+      DEFAULT_FRONT_MATTER.affectedPaths,
+    createdAt: overrides.createdAt || existingFm.createdAt ||
+      DEFAULT_FRONT_MATTER.createdAt,
+    updatedAt: overrides.updatedAt || existingFm.updatedAt ||
+      new Date().toISOString(),
+    status: overrides.status || existingFm.status ||
+      DEFAULT_FRONT_MATTER.status,
+    origin: overrides.origin || existingFm.origin || "harness",
+  };
 
-    return formatFrontMatter(fm) + "\n" + body.trimStart();
+  return formatFrontMatter(fm) + "\n" + body.trimStart();
 }
 
 /**
@@ -132,26 +139,27 @@ export function injectFrontMatter(markdown, overrides = {}) {
  * @returns {{ attrs: PlanFrontMatter, body: string }}
  */
 export function parsePlanFrontMatter(markdown) {
-    if (!hasFrontMatter(markdown)) {
-        return {
-            attrs: { ...DEFAULT_FRONT_MATTER, createdAt: new Date().toISOString() },
-            body: markdown,
-        };
-    }
-    const { attrs, body } = extractYaml(markdown);
+  if (!hasFrontMatter(markdown)) {
     return {
-        attrs: {
-            classification: attrs.classification || DEFAULT_FRONT_MATTER.classification,
-            complexity: attrs.complexity || DEFAULT_FRONT_MATTER.complexity,
-            summary: attrs.summary || DEFAULT_FRONT_MATTER.summary,
-            affectedPaths: attrs.affectedPaths || DEFAULT_FRONT_MATTER.affectedPaths,
-            createdAt: attrs.createdAt || DEFAULT_FRONT_MATTER.createdAt,
-            updatedAt: attrs.updatedAt,
-            status: attrs.status || DEFAULT_FRONT_MATTER.status,
-            origin: attrs.origin || DEFAULT_FRONT_MATTER.origin,
-        },
-        body,
+      attrs: { ...DEFAULT_FRONT_MATTER, createdAt: new Date().toISOString() },
+      body: markdown,
     };
+  }
+  const { attrs, body } = extractYaml(markdown);
+  return {
+    attrs: {
+      classification: attrs.classification ||
+        DEFAULT_FRONT_MATTER.classification,
+      complexity: attrs.complexity || DEFAULT_FRONT_MATTER.complexity,
+      summary: attrs.summary || DEFAULT_FRONT_MATTER.summary,
+      affectedPaths: attrs.affectedPaths || DEFAULT_FRONT_MATTER.affectedPaths,
+      createdAt: attrs.createdAt || DEFAULT_FRONT_MATTER.createdAt,
+      updatedAt: attrs.updatedAt,
+      status: attrs.status || DEFAULT_FRONT_MATTER.status,
+      origin: attrs.origin || DEFAULT_FRONT_MATTER.origin,
+    },
+    body,
+  };
 }
 
 // ─── Save / Load / List ──────────────────────────────────────────────
@@ -166,11 +174,11 @@ export function parsePlanFrontMatter(markdown) {
  * @returns {Promise<string>} The full path where the plan was saved
  */
 export async function savePlan(cwd, planName, content, fmOverrides = {}) {
-    const dir = await ensurePlansDir(cwd);
-    const withFm = injectFrontMatter(content, fmOverrides);
-    const filePath = join(dir, `${planName}.md`);
-    await Deno.writeTextFile(filePath, withFm);
-    return filePath;
+  const dir = await ensurePlansDir(cwd);
+  const withFm = injectFrontMatter(content, fmOverrides);
+  const filePath = join(dir, `${planName}.md`);
+  await Deno.writeTextFile(filePath, withFm);
+  return filePath;
 }
 
 /**
@@ -181,14 +189,14 @@ export async function savePlan(cwd, planName, content, fmOverrides = {}) {
  * @returns {Promise<{ path: string, markdown: string, attrs: PlanFrontMatter, body: string } | null>}
  */
 export async function loadPlan(cwd, planName) {
-    const filePath = join(getPlansDir(cwd), `${planName}.md`);
-    try {
-        const markdown = await Deno.readTextFile(filePath);
-        const { attrs, body } = parsePlanFrontMatter(markdown);
-        return { path: filePath, markdown, attrs, body };
-    } catch {
-        return null;
-    }
+  const filePath = join(getPlansDir(cwd), `${planName}.md`);
+  try {
+    const markdown = await Deno.readTextFile(filePath);
+    const { attrs, body } = parsePlanFrontMatter(markdown);
+    return { path: filePath, markdown, attrs, body };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -198,14 +206,14 @@ export async function loadPlan(cwd, planName) {
  * @returns {Promise<{ path: string, markdown: string, attrs: PlanFrontMatter, body: string }>}
  */
 export async function loadExternalPlan(absolutePath) {
-    const markdown = await Deno.readTextFile(absolutePath);
-    const { attrs, body } = parsePlanFrontMatter(markdown);
-    // If front matter was missing, rewrite with defaults injected
-    if (!hasFrontMatter(markdown)) {
-        const withFm = injectFrontMatter(markdown, { origin: "external" });
-        return { path: absolutePath, markdown: withFm, attrs, body };
-    }
-    return { path: absolutePath, markdown, attrs, body };
+  const markdown = await Deno.readTextFile(absolutePath);
+  const { attrs, body } = parsePlanFrontMatter(markdown);
+  // If front matter was missing, rewrite with defaults injected
+  if (!hasFrontMatter(markdown)) {
+    const withFm = injectFrontMatter(markdown, { origin: "external" });
+    return { path: absolutePath, markdown: withFm, attrs, body };
+  }
+  return { path: absolutePath, markdown, attrs, body };
 }
 
 /**
@@ -217,10 +225,10 @@ export async function loadExternalPlan(absolutePath) {
  * @returns {Promise<void>}
  */
 export async function updatePlanStatus(cwd, planName, status) {
-    const plan = await loadPlan(cwd, planName);
-    if (!plan) throw new Error(`Plan not found: ${planName}`);
-    const withFm = injectFrontMatter(plan.body, { ...plan.attrs, status });
-    await Deno.writeTextFile(plan.path, withFm);
+  const plan = await loadPlan(cwd, planName);
+  if (!plan) throw new Error(`Plan not found: ${planName}`);
+  const withFm = injectFrontMatter(plan.body, { ...plan.attrs, status });
+  await Deno.writeTextFile(plan.path, withFm);
 }
 
 /**
@@ -230,25 +238,25 @@ export async function updatePlanStatus(cwd, planName, status) {
  * @returns {Promise<Array<{ name: string, path: string, attrs: PlanFrontMatter }>>}
  */
 export async function listPlans(cwd) {
-    const dir = getPlansDir(cwd);
-    const results = [];
-    try {
-        for await (const entry of Deno.readDir(dir)) {
-            if (!entry.isFile || !entry.name.endsWith(".md")) continue;
-            const name = entry.name.replace(/\.md$/, "");
-            const filePath = join(dir, entry.name);
-            try {
-                const markdown = await Deno.readTextFile(filePath);
-                const { attrs } = parsePlanFrontMatter(markdown);
-                results.push({ name, path: filePath, attrs });
-            } catch {
-                // skip unreadable files
-            }
-        }
-    } catch {
-        // plans dir doesn't exist yet
+  const dir = getPlansDir(cwd);
+  const results = [];
+  try {
+    for await (const entry of Deno.readDir(dir)) {
+      if (!entry.isFile || !entry.name.endsWith(".md")) continue;
+      const name = entry.name.replace(/\.md$/, "");
+      const filePath = join(dir, entry.name);
+      try {
+        const markdown = await Deno.readTextFile(filePath);
+        const { attrs } = parsePlanFrontMatter(markdown);
+        results.push({ name, path: filePath, attrs });
+      } catch {
+        // skip unreadable files
+      }
     }
-    return results;
+  } catch {
+    // plans dir doesn't exist yet
+  }
+  return results;
 }
 
 /**
@@ -261,17 +269,21 @@ export async function listPlans(cwd) {
  * @returns {Promise<{ path: string, markdown: string, attrs: PlanFrontMatter, body: string, planName: string }>}
  */
 export async function resolvePlan(cwd, arg) {
-    // Check if it's a path (absolute or relative with separators)
-    const isPath = arg.includes("/") || arg.includes("\\") || arg.endsWith(".md");
+  // Check if it's a path (absolute or relative with separators)
+  const isPath = arg.includes("/") || arg.includes("\\") || arg.endsWith(".md");
 
-    if (isPath) {
-        const absPath = resolve(cwd, arg);
-        const plan = await loadExternalPlan(absPath);
-        const planName = basename(absPath, ".md");
-        return { ...plan, planName };
-    }
+  if (isPath) {
+    const absPath = resolve(cwd, arg);
+    const plan = await loadExternalPlan(absPath);
+    const planName = basename(absPath, ".md");
+    return { ...plan, planName };
+  }
 
-    const plan = await loadPlan(cwd, arg);
-    if (!plan) throw new Error(`Plan not found: ${arg}. Use '${CLI_BIN} plans' to list available plans.`);
-    return { ...plan, planName: arg };
+  const plan = await loadPlan(cwd, arg);
+  if (!plan) {
+    throw new Error(
+      `Plan not found: ${arg}. Use '${CLI_BIN} plans' to list available plans.`,
+    );
+  }
+  return { ...plan, planName: arg };
 }

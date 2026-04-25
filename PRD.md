@@ -25,7 +25,8 @@ memory, and treating the SDLC as a series of intentional gates.
 The system must automatically triage incoming requests into one of three paths:
 
 - **Quick Fix:** Troubleshooting and rapid changes with no upfront decisions.
-  Uses Debugger or Execution agents. Exception for operational tasks (e.g., "deploy to prod") which don't require a plan.
+  Uses Debugger or Execution agents. Exception for operational tasks (e.g.,
+  "deploy to prod") which don't require a plan.
 - **Feature:** Requires upfront clarification and a structured plan (inspired by
   Plannotator.ai). Can be decomposed into dependent tasks.
 - **Project:** Large-scale changes or new initiatives. Requires a dedicated

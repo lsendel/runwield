@@ -10,7 +10,7 @@
  * @returns {Promise<string>}
  */
 export async function readUserInput(maxBytes = 256) {
-    const buf = new Uint8Array(maxBytes);
-    await Deno.stdin.read(buf);
-    return new TextDecoder().decode(buf).trim();
+  const buf = new Uint8Array(maxBytes);
+  await Deno.stdin.read(buf);
+  return new TextDecoder().decode(buf).trim();
 }

@@ -7,9 +7,9 @@
  */
 
 import {
-    parsePlanFrontMatter,
-    injectFrontMatter,
-    updatePlanStatus,
+  injectFrontMatter,
+  parsePlanFrontMatter,
+  updatePlanStatus,
 } from "../plan-store.js";
 import { startPlanReviewServer } from "@gandazgul/plannotator-pi-extension-compiled/server";
 import { plannotatorHtml } from "@gandazgul/plannotator-pi-extension-compiled/assets";
@@ -24,34 +24,34 @@ import { plannotatorHtml } from "@gandazgul/plannotator-pi-extension-compiled/as
  * @returns {Promise<boolean>}
  */
 async function openInDefaultBrowser(url) {
-    /** @type {{ command: string; args: string[] }} */
-    let launcher;
+  /** @type {{ command: string; args: string[] }} */
+  let launcher;
 
-    switch (Deno.build.os) {
-        case "darwin":
-            launcher = { command: "open", args: [url] };
-            break;
-        case "windows":
-            launcher = { command: "cmd", args: ["/c", "start", "", url] };
-            break;
-        default:
-            launcher = { command: "xdg-open", args: [url] };
-            break;
-    }
+  switch (Deno.build.os) {
+    case "darwin":
+      launcher = { command: "open", args: [url] };
+      break;
+    case "windows":
+      launcher = { command: "cmd", args: ["/c", "start", "", url] };
+      break;
+    default:
+      launcher = { command: "xdg-open", args: [url] };
+      break;
+  }
 
-    try {
-        const proc = new Deno.Command(launcher.command, {
-            args: launcher.args,
-            stdout: "null",
-            stderr: "null",
-        }).spawn();
+  try {
+    const proc = new Deno.Command(launcher.command, {
+      args: launcher.args,
+      stdout: "null",
+      stderr: "null",
+    }).spawn();
 
-        // We don't fail the flow if browser opening fails.
-        await proc.status.catch(() => {});
-        return true;
-    } catch {
-        return false;
-    }
+    // We don't fail the flow if browser opening fails.
+    await proc.status.catch(() => {});
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // ─── Types ────────────────────────────────────────────────────────────
@@ -76,79 +76,81 @@ async function openInDefaultBrowser(url) {
  * @returns {Promise<PlanReviewResult>}
  */
 export async function submitPlanForReview({
-    cwd,
-    planName,
-    planPath,
-    triageMeta,
+  cwd,
+  planName,
+  planPath,
+  triageMeta,
 }) {
-    // 1. Read plan
-    const planContent = await Deno.readTextFile(planPath);
+  // 1. Read plan
+  const planContent = await Deno.readTextFile(planPath);
 
-    // 2. Ensure front matter is present and up to date
-    const { attrs, body } = parsePlanFrontMatter(planContent);
-    const fmOverrides = {
-        ...attrs,
-        status: "in_review",
-        updatedAt: new Date().toISOString(),
-    };
+  // 2. Ensure front matter is present and up to date
+  const { attrs, body } = parsePlanFrontMatter(planContent);
+  const fmOverrides = {
+    ...attrs,
+    status: "in_review",
+    updatedAt: new Date().toISOString(),
+  };
 
-    if (triageMeta) {
-        if (triageMeta.classification) {
-            fmOverrides.classification = triageMeta.classification;
-        }
-        if (triageMeta.complexity) fmOverrides.complexity = triageMeta.complexity;
-        if (triageMeta.summary) fmOverrides.summary = triageMeta.summary;
-        if (triageMeta.affectedPaths) {
-            fmOverrides.affectedPaths = triageMeta.affectedPaths;
-        }
+  if (triageMeta) {
+    if (triageMeta.classification) {
+      fmOverrides.classification = triageMeta.classification;
     }
+    if (triageMeta.complexity) fmOverrides.complexity = triageMeta.complexity;
+    if (triageMeta.summary) fmOverrides.summary = triageMeta.summary;
+    if (triageMeta.affectedPaths) {
+      fmOverrides.affectedPaths = triageMeta.affectedPaths;
+    }
+  }
 
-    const planWithFm = injectFrontMatter(body, fmOverrides);
-    await Deno.writeTextFile(planPath, planWithFm);
+  const planWithFm = injectFrontMatter(body, fmOverrides);
+  await Deno.writeTextFile(planPath, planWithFm);
 
-    // 3. Use HTML embedded in package exports (compile-safe; no runtime fs lookup).
-    const htmlContent = plannotatorHtml;
+  // 3. Use HTML embedded in package exports (compile-safe; no runtime fs lookup).
+  const htmlContent = plannotatorHtml;
 
-    console.log(`\n[Harness] Opening plan review UI for: ${planName}`);
-    console.log(`[Harness] Plan file: ${planPath}`);
+  console.log(`\n[Harness] Opening plan review UI for: ${planName}`);
+  console.log(`[Harness] Plan file: ${planPath}`);
 
-    // 4. Start review server IN-PROCESS
-    const server = await startPlanReviewServer({
-        plan: planWithFm,
-        htmlContent,
-        origin: "harness",
-    });
+  // 4. Start review server IN-PROCESS
+  const server = await startPlanReviewServer({
+    plan: planWithFm,
+    htmlContent,
+    origin: "harness",
+  });
 
-    console.log(`[Harness] Review UI available at: ${server.url}`);
+  console.log(`[Harness] Review UI available at: ${server.url}`);
 
-    const opened = await openInDefaultBrowser(server.url);
-    if (opened) {
-        console.log(`[Harness] Opened review UI in your default browser.`);
+  const opened = await openInDefaultBrowser(server.url);
+  if (opened) {
+    console.log(`[Harness] Opened review UI in your default browser.`);
+  } else {
+    console.log(
+      `[Harness] Could not auto-open browser. Open manually: ${server.url}`,
+    );
+  }
+
+  console.log(`[Harness] Waiting for user decision...`);
+
+  try {
+    // 5. Wait for user decide (blocks until approve/deny)
+    const decision = await server.waitForDecision();
+
+    // 6. Update status
+    if (decision.approved) {
+      await updatePlanStatus(cwd, planName, "approved");
+      console.log(`\n[Harness] ✅ Plan approved: ${planName}`);
     } else {
-        console.log(`[Harness] Could not auto-open browser. Open manually: ${server.url}`);
+      await updatePlanStatus(cwd, planName, "denied");
+      console.log(`\n[Harness] ❌ Plan denied: ${planName}`);
     }
 
-    console.log(`[Harness] Waiting for user decision...`);
-
-    try {
-        // 5. Wait for user decide (blocks until approve/deny)
-        const decision = await server.waitForDecision();
-
-        // 6. Update status
-        if (decision.approved) {
-            await updatePlanStatus(cwd, planName, "approved");
-            console.log(`\n[Harness] ✅ Plan approved: ${planName}`);
-        } else {
-            await updatePlanStatus(cwd, planName, "denied");
-            console.log(`\n[Harness] ❌ Plan denied: ${planName}`);
-        }
-
-        return {
-            approved: decision.approved,
-            feedback: decision.feedback,
-        };
-    } finally {
-        // Ensure server is stopped regardless of outcome
-        server.stop();
-    }
+    return {
+      approved: decision.approved,
+      feedback: decision.feedback,
+    };
+  } finally {
+    // Ensure server is stopped regardless of outcome
+    server.stop();
+  }
 }
