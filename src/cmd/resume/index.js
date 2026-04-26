@@ -8,16 +8,9 @@ import { CLI_BIN, CWD, TOOLSETS } from "../../constants.js";
 import { resolvePlan } from "../../plan-store.js";
 import { submitPlanForReview } from "../../tools/submit-plan.js";
 import { planWrittenTool } from "../../tools/plan-written.js";
-import {
-  askPostApproval,
-  executePlan,
-  reviewLoop,
-} from "../../shared/workflow.js";
+import { askPostApproval, executePlan, reviewLoop } from "../../shared/workflow.js";
 import { printCommandHelp } from "../../shared/help-text.js";
-import {
-  setActiveAgent,
-  startInteractiveSession,
-} from "../../shared/chat-session.js";
+import { setActiveAgent, startInteractiveSession } from "../../shared/chat-session.js";
 
 /**
  * Handle `resume` command.
@@ -30,187 +23,185 @@ import {
  * @param {Function} [options.originalHandleInput]
  */
 export async function runResumeCommand(argv, options = {}) {
-  const parsed = parseArgs(argv, {
-    boolean: ["help"],
-    alias: { h: "help" },
-    stopEarly: true,
-  });
+    const parsed = parseArgs(argv, {
+        boolean: ["help"],
+        alias: { h: "help" },
+        stopEarly: true,
+    });
 
-  if (parsed.help) {
-    printCommandHelp("resume");
-    return;
-  }
-
-  const [planArg] = parsed._.map(String);
-  if (!planArg) {
-    if (options.uiAPI && options.editor) {
-      if (options.text !== "/resume") {
-        options.uiAPI.appendSystemMessage("Resume canceled.");
-        options.editor.setText("");
-        options.editor.disableSubmit = false;
+    if (parsed.help) {
+        printCommandHelp("resume");
         return;
-      }
+    }
 
-      const { listPlans } = await import("../../plan-store.js");
-      const plans = await listPlans(Deno.cwd());
-      if (plans.length === 0) {
-        options.uiAPI.appendSystemMessage(
-          "No plans available, start one by entering a new prompt",
-        );
-        options.editor.setText("");
-        options.editor.disableSubmit = false;
-        return;
-      }
-
-      options.editor.setText("/resume ");
-      options.editor.cursorCol = 8;
-      options.editor.disableSubmit = false;
-
-      // Delay autocomplete request slightly to ensure it fires AFTER
-      // the current submission cycle is fully resolved in the pi-tui loop.
-      setTimeout(() => {
-        if (typeof options.editor.requestAutocomplete === "function") {
-          try {
-            options.editor.requestAutocomplete({ force: true });
-          } catch (_e) {
-            if (options.originalHandleInput) {
-              options.originalHandleInput(" ");
+    const [planArg] = parsed._.map(String);
+    if (!planArg) {
+        if (options.uiAPI && options.editor) {
+            if (options.text !== "/resume") {
+                options.uiAPI.appendSystemMessage("Resume canceled.");
+                options.editor.setText("");
+                options.editor.disableSubmit = false;
+                return;
             }
-          }
-        } else if (options.originalHandleInput) {
-          options.originalHandleInput(" ");
+
+            const { listPlans } = await import("../../plan-store.js");
+            const plans = await listPlans(Deno.cwd());
+            if (plans.length === 0) {
+                options.uiAPI.appendSystemMessage(
+                    "No plans available, start one by entering a new prompt",
+                );
+                options.editor.setText("");
+                options.editor.disableSubmit = false;
+                return;
+            }
+
+            options.editor.setText("/resume ");
+            options.editor.cursorCol = 8;
+            options.editor.disableSubmit = false;
+
+            // Delay autocomplete request slightly to ensure it fires AFTER
+            // the current submission cycle is fully resolved in the pi-tui loop.
+            setTimeout(() => {
+                if (typeof options.editor.requestAutocomplete === "function") {
+                    try {
+                        options.editor.requestAutocomplete({ force: true });
+                    } catch (_e) {
+                        if (options.originalHandleInput) {
+                            options.originalHandleInput(" ");
+                        }
+                    }
+                } else if (options.originalHandleInput) {
+                    options.originalHandleInput(" ");
+                }
+            }, 50);
+            return;
         }
-      }, 50);
-      return;
+
+        console.error(`Usage: ${CLI_BIN} resume <plan-name-or-path>`);
+        Deno.exit(1);
     }
 
-    console.error(`Usage: ${CLI_BIN} resume <plan-name-or-path>`);
-    Deno.exit(1);
-  }
+    let uiAPI = options.uiAPI;
 
-  let uiAPI = options.uiAPI;
-
-  if (!uiAPI) {
-    // We were invoked from the CLI directly, boot the TUI!
-    uiAPI = await startInteractiveSession(
-      null,
-      (_prompt, _images, currentUiAPI) => {
-        currentUiAPI.appendSystemMessage("Please wait for the plan to load...");
-        return Promise.resolve();
-      },
-    );
-  }
-
-  if (!uiAPI) return;
-
-  uiAPI.appendSystemMessage(`[Harns] Resuming plan: ${planArg}`);
-
-  const plan = await resolvePlan(CWD, planArg);
-  uiAPI.appendSystemMessage(`[Harns] Plan loaded: ${plan.planName}`);
-  uiAPI.appendSystemMessage(
-    `[Harns] Classification: ${plan.attrs.classification}, Status: ${plan.attrs.status}`,
-  );
-
-  const triageMeta = plan.attrs;
-  const agentName = triageMeta.classification === "PROJECT"
-    ? "architect"
-    : "planner";
-
-  if (plan.attrs.status === "approved") {
-    uiAPI.appendSystemMessage("[Harns] This plan has already been approved.");
-
-    while (true) {
-      const answer = await uiAPI.promptSelect("What would you like to do?", [
-        { value: "proceed", label: "Proceed with execution" },
-        { value: "review", label: "Re-open for review (edit/annotate)" },
-        { value: "view", label: "View plan details" },
-      ]);
-
-      if (!answer) {
-        uiAPI.appendSystemMessage("[Harns] Resume canceled.");
-        return;
-      }
-
-      if (answer === "proceed") {
-        await executePlan(plan.planName, plan.attrs, uiAPI);
-        return;
-      }
-
-      if (answer === "review") {
-        const result = await submitPlanForReview({
-          cwd: CWD,
-          planName: plan.planName,
-          planPath: plan.path,
-          triageMeta: plan.attrs,
-          uiAPI,
-        });
-
-        if (result.approved) {
-          const action = await askPostApproval(plan.planName, uiAPI);
-          if (action === "proceed") {
-            await executePlan(plan.planName, plan.attrs, uiAPI);
-          } else {
-            uiAPI.appendSystemMessage(
-              `[Harns] Plan saved. Resume later with: ${CLI_BIN} resume ${plan.planName}`,
-            );
-          }
-        } else {
-          uiAPI.appendSystemMessage(
-            "[Harns] Plan denied. To continue the revision loop, run:",
-          );
-          uiAPI.appendSystemMessage(`  ${CLI_BIN} resume ${plan.planName}`);
-        }
-        return;
-      }
-
-      if (answer === "view") {
-        uiAPI.appendSystemMessage(`\n${plan.body}\n`);
-      }
+    if (!uiAPI) {
+        // We were invoked from the CLI directly, boot the TUI!
+        uiAPI = await startInteractiveSession(
+            null,
+            (_prompt, _images, currentUiAPI) => {
+                currentUiAPI.appendSystemMessage("Please wait for the plan to load...");
+                return Promise.resolve();
+            },
+        );
     }
-  }
 
-  // Not approved - enter review loop
-  // deno-lint-ignore require-await
-  setActiveAgent(agentName, async (_prompt, _images, currentUiAPI) => {
-    // The review loop actually drives the prompt.
-    // Wait, reviewLoop is a long-running async function that invokes the agent internally!
-    // So we don't handle messages here, the reviewLoop does it internally by running `runSession`.
-    // But `runSession` prompts the user at the end?
-    // Actually, `runSession` runs the agent until it needs user input.
-    // So if we are in TUI, `runSession` waits for `onMessage`?
-    currentUiAPI.appendSystemMessage(
-      "Warning: Manual input while agent is running is not yet handled.",
+    if (!uiAPI) return;
+
+    uiAPI.appendSystemMessage(`[Harns] Resuming plan: ${planArg}`);
+
+    const plan = await resolvePlan(CWD, planArg);
+    uiAPI.appendSystemMessage(`[Harns] Plan loaded: ${plan.planName}`);
+    uiAPI.appendSystemMessage(
+        `[Harns] Classification: ${plan.attrs.classification}, Status: ${plan.attrs.status}`,
     );
-  });
 
-  const revisionPrompt = [
-    `## Resuming Plan: ${plan.planName}`,
-    "",
-    `This plan was previously saved with status: ${plan.attrs.status}.`,
-    `Continue working on it. The plan is at plans/${plan.planName}.md.`,
-    "",
-    "## Triage Report",
-    `- Classification: ${triageMeta.classification}`,
-    `- Complexity: ${triageMeta.complexity}`,
-    `- Summary: ${triageMeta.summary}`,
-    `- Affected paths: ${(triageMeta.affectedPaths || []).join(", ")}`,
-    "",
-    "Review the current plan, make any needed updates, and finalize it.",
-  ].join("\n");
+    const triageMeta = plan.attrs;
+    const agentName = triageMeta.classification === "PROJECT" ? "architect" : "planner";
 
-  const result = await reviewLoop({
-    agentName,
-    toolNames: TOOLSETS.PLANNING,
-    customTools: [planWrittenTool],
-    initialPrompt: revisionPrompt,
-    triageMeta,
-    uiAPI,
-  });
+    if (plan.attrs.status === "approved") {
+        uiAPI.appendSystemMessage("[Harns] This plan has already been approved.");
 
-  if (result) {
-    // Temporarily bypass CLI prompts inside TUI if possible
-    uiAPI.appendSystemMessage(`[Harns] Plan "${result.planName}" approved!`);
-    uiAPI.appendSystemMessage(`[Harns] Proceeding with execution...`);
-    await executePlan(result.planName, triageMeta, uiAPI);
-  }
+        while (true) {
+            const answer = await uiAPI.promptSelect("What would you like to do?", [
+                { value: "proceed", label: "Proceed with execution" },
+                { value: "review", label: "Re-open for review (edit/annotate)" },
+                { value: "view", label: "View plan details" },
+            ]);
+
+            if (!answer) {
+                uiAPI.appendSystemMessage("[Harns] Resume canceled.");
+                return;
+            }
+
+            if (answer === "proceed") {
+                await executePlan(plan.planName, plan.attrs, uiAPI);
+                return;
+            }
+
+            if (answer === "review") {
+                const result = await submitPlanForReview({
+                    cwd: CWD,
+                    planName: plan.planName,
+                    planPath: plan.path,
+                    triageMeta: plan.attrs,
+                    uiAPI,
+                });
+
+                if (result.approved) {
+                    const action = await askPostApproval(plan.planName, uiAPI);
+                    if (action === "proceed") {
+                        await executePlan(plan.planName, plan.attrs, uiAPI);
+                    } else {
+                        uiAPI.appendSystemMessage(
+                            `[Harns] Plan saved. Resume later with: ${CLI_BIN} resume ${plan.planName}`,
+                        );
+                    }
+                } else {
+                    uiAPI.appendSystemMessage(
+                        "[Harns] Plan denied. To continue the revision loop, run:",
+                    );
+                    uiAPI.appendSystemMessage(`  ${CLI_BIN} resume ${plan.planName}`);
+                }
+                return;
+            }
+
+            if (answer === "view") {
+                uiAPI.appendSystemMessage(`\n${plan.body}\n`);
+            }
+        }
+    }
+
+    // Not approved - enter review loop
+    // deno-lint-ignore require-await
+    setActiveAgent(agentName, async (_prompt, _images, currentUiAPI) => {
+        // The review loop actually drives the prompt.
+        // Wait, reviewLoop is a long-running async function that invokes the agent internally!
+        // So we don't handle messages here, the reviewLoop does it internally by running `runSession`.
+        // But `runSession` prompts the user at the end?
+        // Actually, `runSession` runs the agent until it needs user input.
+        // So if we are in TUI, `runSession` waits for `onMessage`?
+        currentUiAPI.appendSystemMessage(
+            "Warning: Manual input while agent is running is not yet handled.",
+        );
+    });
+
+    const revisionPrompt = [
+        `## Resuming Plan: ${plan.planName}`,
+        "",
+        `This plan was previously saved with status: ${plan.attrs.status}.`,
+        `Continue working on it. The plan is at plans/${plan.planName}.md.`,
+        "",
+        "## Triage Report",
+        `- Classification: ${triageMeta.classification}`,
+        `- Complexity: ${triageMeta.complexity}`,
+        `- Summary: ${triageMeta.summary}`,
+        `- Affected paths: ${(triageMeta.affectedPaths || []).join(", ")}`,
+        "",
+        "Review the current plan, make any needed updates, and finalize it.",
+    ].join("\n");
+
+    const result = await reviewLoop({
+        agentName,
+        toolNames: TOOLSETS.PLANNING,
+        customTools: [planWrittenTool],
+        initialPrompt: revisionPrompt,
+        triageMeta,
+        uiAPI,
+    });
+
+    if (result) {
+        // Temporarily bypass CLI prompts inside TUI if possible
+        uiAPI.appendSystemMessage(`[Harns] Plan "${result.planName}" approved!`);
+        uiAPI.appendSystemMessage(`[Harns] Proceeding with execution...`);
+        await executePlan(result.planName, triageMeta, uiAPI);
+    }
 }

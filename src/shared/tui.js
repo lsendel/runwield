@@ -15,11 +15,11 @@ let terminalInstance = null;
  * @returns {TUI}
  */
 export function initTUI() {
-  if (tuiInstance) return tuiInstance;
-  terminalInstance = new ProcessTerminal();
-  tuiInstance = new TUI(terminalInstance);
-  tuiInstance.start();
-  return tuiInstance;
+    if (tuiInstance) return tuiInstance;
+    terminalInstance = new ProcessTerminal();
+    tuiInstance = new TUI(terminalInstance);
+    tuiInstance.start();
+    return tuiInstance;
 }
 
 /**
@@ -27,22 +27,22 @@ export function initTUI() {
  * @returns {{ tui: TUI, terminal: ProcessTerminal }}
  */
 export function getTUI() {
-  if (!tuiInstance || !terminalInstance) {
-    throw new Error("TUI not initialized. Call initTUI() first.");
-  }
-  return { tui: tuiInstance, terminal: terminalInstance };
+    if (!tuiInstance || !terminalInstance) {
+        throw new Error("TUI not initialized. Call initTUI() first.");
+    }
+    return { tui: tuiInstance, terminal: terminalInstance };
 }
 
 /**
  * Stop the TUI and clean up terminal state.
  */
 export function stopTUI() {
-  if (tuiInstance) {
-    // Attempt to stop TUI if method exists
-    if (typeof tuiInstance.stop === "function") {
-      tuiInstance.stop();
+    if (tuiInstance) {
+        // Attempt to stop TUI if method exists
+        if (typeof tuiInstance.stop === "function") {
+            tuiInstance.stop();
+        }
+        tuiInstance = null;
+        terminalInstance = null;
     }
-    tuiInstance = null;
-    terminalInstance = null;
-  }
 }

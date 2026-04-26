@@ -10,13 +10,13 @@
  * @returns {Promise<string>}
  */
 export async function readUserInput(maxBytes = 256) {
-  const buf = new Uint8Array(maxBytes);
-  const bytesRead = await Deno.stdin.read(buf);
+    const buf = new Uint8Array(maxBytes);
+    const bytesRead = await Deno.stdin.read(buf);
 
-  if (bytesRead === null) return "";
+    if (bytesRead === null) return "";
 
-  return new TextDecoder()
-    .decode(buf.subarray(0, bytesRead))
-    .replaceAll("\0", "")
-    .trim();
+    return new TextDecoder()
+        .decode(buf.subarray(0, bytesRead))
+        .replaceAll("\0", "")
+        .trim();
 }

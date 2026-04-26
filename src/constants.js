@@ -25,9 +25,9 @@ export const AGENTS_DIR = join(SRC_DIR, "..", ".pi", "agents");
  * Keeps cross-agent behavior aligned with Harns expectations.
  */
 export const CORE_SYSTEM_PROMPT = [
-  "You are part of the Harns system — a plan-by-default coding harness.",
-  "Always be concise, thorough, and precise in your analysis.",
-  "When you use tools, explain briefly what you're looking for.",
+    "You are part of the Harns system — a plan-by-default coding harness.",
+    "Always be concise, thorough, and precise in your analysis.",
+    "When you use tools, explain briefly what you're looking for.",
 ].join("\n");
 
 /** Allowed triage classification values emitted by the router. */
@@ -41,20 +41,20 @@ export const PLANS_DIR_NAME = "plans";
 
 /** Known CLI command names. */
 export const COMMAND_NAMES = Object.freeze({
-  ROUTER: "router",
-  RESUME: "resume",
-  PLANS: "plans",
-  SLEEP: "sleep",
-  HELP: "help",
+    ROUTER: "router",
+    RESUME: "resume",
+    PLANS: "plans",
+    SLEEP: "sleep",
+    HELP: "help",
 });
 
 /** Shared memory tools available across agent sessions. */
 export const MEMORY_TOOLSET = Object.freeze([
-  "memory_recall",
-  "memory_recall_global",
-  "memory_store",
-  "memory_store_global",
-  "memory_delete",
+    "memory_recall",
+    "memory_recall_global",
+    "memory_store",
+    "memory_store_global",
+    "memory_delete",
 ]);
 
 /**
@@ -62,9 +62,9 @@ export const MEMORY_TOOLSET = Object.freeze([
  * Keeping these centralized avoids drift between commands.
  */
 export const TOOLSETS = Object.freeze({
-  ROUTER: ["read", "bash", ...MEMORY_TOOLSET],
-  OPERATOR: ["read", "edit", "write", "bash", ...MEMORY_TOOLSET],
-  PLANNING: ["read", "edit", "write", "bash", ...MEMORY_TOOLSET],
-  ENGINEER: ["read", "edit", "write", "bash", ...MEMORY_TOOLSET],
-  DOC_WRITER: ["read", "write", "bash", ...MEMORY_TOOLSET],
+    ROUTER: ["read", "bash", ...MEMORY_TOOLSET],
+    OPERATOR: ["read", "edit", "write", "bash", ...MEMORY_TOOLSET],
+    PLANNING: ["read", "edit", "write", "bash", ...MEMORY_TOOLSET],
+    ENGINEER: ["read", "edit", "write", "bash", ...MEMORY_TOOLSET],
+    DOC_WRITER: ["read", "write", "bash", ...MEMORY_TOOLSET],
 });

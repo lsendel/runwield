@@ -12,25 +12,25 @@ import { printCommandHelp, printGlobalHelp } from "../../shared/help-text.js";
  * @param {string[]} argv
  */
 export async function runHelpCommand(argv) {
-  await Promise.resolve();
+    await Promise.resolve();
 
-  const parsed = parseArgs(argv, {
-    boolean: ["help"],
-    alias: { h: "help" },
-  });
+    const parsed = parseArgs(argv, {
+        boolean: ["help"],
+        alias: { h: "help" },
+    });
 
-  const [commandName] = parsed._.map(String);
+    const [commandName] = parsed._.map(String);
 
-  if (!commandName) {
-    printGlobalHelp();
-    return;
-  }
+    if (!commandName) {
+        printGlobalHelp();
+        return;
+    }
 
-  const found = printCommandHelp(commandName);
-  if (!found) {
-    console.error(`[Harns] Unknown command for help: ${commandName}`);
-    console.log();
-    printGlobalHelp();
-    Deno.exit(1);
-  }
+    const found = printCommandHelp(commandName);
+    if (!found) {
+        console.error(`[Harns] Unknown command for help: ${commandName}`);
+        console.log();
+        printGlobalHelp();
+        Deno.exit(1);
+    }
 }

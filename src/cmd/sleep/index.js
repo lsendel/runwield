@@ -8,8 +8,7 @@ import { COMMAND_NAMES, TOOLSETS } from "../../constants.js";
 import { runSession } from "../../shared/session.js";
 import { printCommandHelp } from "../../shared/help-text.js";
 
-const SLEEP_PROMPT =
-  `You are running Harns sleep mode to optimize long-term memory quality.
+const SLEEP_PROMPT = `You are running Harns sleep mode to optimize long-term memory quality.
 
 Goal:
 - Improve memory signal quality for future sessions.
@@ -31,18 +30,18 @@ Delete with \`mnemosyne delete [memory id]\` and add with \`mnemosyne add [memor
 
 /** @returns {Promise<boolean>} */
 async function hasMnemosyneBinary() {
-  try {
-    const proc = new Deno.Command("mnemosyne", {
-      args: ["--help"],
-      stdout: "null",
-      stderr: "null",
-    }).spawn();
+    try {
+        const proc = new Deno.Command("mnemosyne", {
+            args: ["--help"],
+            stdout: "null",
+            stderr: "null",
+        }).spawn();
 
-    const status = await proc.status;
-    return status.code === 0;
-  } catch {
-    return false;
-  }
+        const status = await proc.status;
+        return status.code === 0;
+    } catch {
+        return false;
+    }
 }
 
 /**
@@ -51,36 +50,36 @@ async function hasMnemosyneBinary() {
  * @param {string[]} argv
  */
 export async function runSleepCommand(argv) {
-  const parsed = parseArgs(argv, {
-    boolean: ["help"],
-    alias: { h: "help" },
-    stopEarly: true,
-  });
+    const parsed = parseArgs(argv, {
+        boolean: ["help"],
+        alias: { h: "help" },
+        stopEarly: true,
+    });
 
-  if (parsed.help) {
-    printCommandHelp(COMMAND_NAMES.SLEEP);
-    return;
-  }
+    if (parsed.help) {
+        printCommandHelp(COMMAND_NAMES.SLEEP);
+        return;
+    }
 
-  const hasBinary = await hasMnemosyneBinary();
-  if (!hasBinary) {
-    console.error("[Harns] Mnemosyne binary not found in PATH.");
-    console.error(
-      "Install it: https://github.com/gandazgul/mnemosyne#quick-start",
-    );
-    console.error(
-      "Then rerun `hns sleep` to optimize/organize persistent memories.",
-    );
-    Deno.exit(1);
-  }
+    const hasBinary = await hasMnemosyneBinary();
+    if (!hasBinary) {
+        console.error("[Harns] Mnemosyne binary not found in PATH.");
+        console.error(
+            "Install it: https://github.com/gandazgul/mnemosyne#quick-start",
+        );
+        console.error(
+            "Then rerun `hns sleep` to optimize/organize persistent memories.",
+        );
+        Deno.exit(1);
+    }
 
-  console.log("[Harns] Running sleep mode (memory optimize session)...\n");
+    console.log("[Harns] Running sleep mode (memory optimize session)...\n");
 
-  await runSession({
-    agentName: "operator",
-    toolNames: TOOLSETS.OPERATOR,
-    prompt: SLEEP_PROMPT,
-  });
+    await runSession({
+        agentName: "operator",
+        toolNames: TOOLSETS.OPERATOR,
+        prompt: SLEEP_PROMPT,
+    });
 
-  console.log("\n[Harns] ✅ Sleep session complete.");
+    console.log("\n[Harns] ✅ Sleep session complete.");
 }

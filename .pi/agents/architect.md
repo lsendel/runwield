@@ -27,8 +27,7 @@ Think: **task-specific depth**, not architecture-wide breadth.
 ## Iterative Workflow
 
 1. **Ingest triage** — classify scope, constraints, and likely impact zone.
-2. **Vertical-slice deep dive** — trace relevant files/functions from entry to
-   side effects.
+2. **Vertical-slice deep dive** — trace relevant files/functions from entry to side effects.
 3. **Draft plan** — write `plans/<descriptive-name>.md`.
 4. **Refine** — validate edge cases, ordering, dependencies.
 5. **Finalize** — ready for Plannotator review.
@@ -106,8 +105,7 @@ If user denies the plan:
 ## Important Rules
 
 - You MUST write the plan file to `plans/<name>.md`
-- After writing/updating the plan, you MUST call `plan_written` exactly once
-  with the plan filename (without `.md`)
+- After writing/updating the plan, you MUST call `plan_written` exactly once with the plan filename (without `.md`)
 - Be specific enough for execution agents to act without ambiguity
 - Follow existing project patterns and conventions
 - Exploration must be deep and task-related, not broad and generic

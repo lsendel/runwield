@@ -14,62 +14,62 @@ import { selectListTheme, theme } from "./theme.js";
  * @returns {Promise<string | null>}
  */
 export function select(title, options) {
-  const { tui } = getTUI();
+    const { tui } = getTUI();
 
-  return new Promise((resolve) => {
-    const container = new Container();
+    return new Promise((resolve) => {
+        const container = new Container();
 
-    container.addChild(new Text("─".repeat(40), 1, 0));
-    container.addChild(new Text(theme.fg("accent", theme.bold(title)), 1, 0));
-    container.addChild(new Text("─".repeat(40), 1, 0));
+        container.addChild(new Text("─".repeat(40), 1, 0));
+        container.addChild(new Text(theme.fg("accent", theme.bold(title)), 1, 0));
+        container.addChild(new Text("─".repeat(40), 1, 0));
 
-    const selectList = new SelectList(
-      options,
-      Math.min(options.length, 10),
-      selectListTheme,
-    );
+        const selectList = new SelectList(
+            options,
+            Math.min(options.length, 10),
+            selectListTheme,
+        );
 
-    /** @type {any} */
-    let handle = null;
+        /** @type {any} */
+        let handle = null;
 
-    selectList.onSelect = (item) => {
-      if (handle) handle.hide();
-      resolve(item.value);
-    };
+        selectList.onSelect = (item) => {
+            if (handle) handle.hide();
+            resolve(item.value);
+        };
 
-    selectList.onCancel = () => {
-      if (handle) handle.hide();
-      resolve(null);
-    };
+        selectList.onCancel = () => {
+            if (handle) handle.hide();
+            resolve(null);
+        };
 
-    container.addChild(selectList);
-    container.addChild(new Text("─".repeat(40), 1, 0));
-    container.addChild(
-      new Text(
-        theme.fg("dim", "↑↓ navigate • enter select • esc cancel"),
-        1,
-        0,
-      ),
-    );
+        container.addChild(selectList);
+        container.addChild(new Text("─".repeat(40), 1, 0));
+        container.addChild(
+            new Text(
+                theme.fg("dim", "↑↓ navigate • enter select • esc cancel"),
+                1,
+                0,
+            ),
+        );
 
-    const component = {
-      /** @param {any} w */
-      render: (w) => container.render(w),
-      invalidate: () => container.invalidate(),
-      /** @param {any} data */
-      handleInput: (data) => {
-        selectList.handleInput(data);
-        tui.requestRender();
-      },
-    };
+        const component = {
+            /** @param {any} w */
+            render: (w) => container.render(w),
+            invalidate: () => container.invalidate(),
+            /** @param {any} data */
+            handleInput: (data) => {
+                selectList.handleInput(data);
+                tui.requestRender();
+            },
+        };
 
-    handle = tui.showOverlay(component, {
-      width: "80%",
-      minWidth: 40,
-      anchor: "center",
-      margin: 2,
+        handle = tui.showOverlay(component, {
+            width: "80%",
+            minWidth: 40,
+            anchor: "center",
+            margin: 2,
+        });
     });
-  });
 }
 
 /**
@@ -78,9 +78,9 @@ export function select(title, options) {
  * @returns {Promise<boolean>}
  */
 export async function confirm(message) {
-  const result = await select(message, [
-    { value: "yes", label: "Yes" },
-    { value: "no", label: "No" },
-  ]);
-  return result === "yes";
+    const result = await select(message, [
+        { value: "yes", label: "Yes" },
+        { value: "no", label: "No" },
+    ]);
+    return result === "yes";
 }

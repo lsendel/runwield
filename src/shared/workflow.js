@@ -26,21 +26,21 @@ import { extractPlanWritten } from "./triage.js";
  * @returns {Promise<{ name: string, path: string } | null>}
  */
 async function resolveDeclaredPlan(messages) {
-  const declared = extractPlanWritten(messages);
-  if (!declared) return null;
+    const declared = extractPlanWritten(messages);
+    if (!declared) return null;
 
-  const planName = declared.planName.replace(/\.md$/i, "");
-  if (!planName) return null;
+    const planName = declared.planName.replace(/\.md$/i, "");
+    if (!planName) return null;
 
-  const planPath = join(CWD, PLANS_DIR_NAME, `${planName}.md`);
-  try {
-    const stat = await Deno.stat(planPath);
-    if (!stat.isFile) return null;
-  } catch {
-    return null;
-  }
+    const planPath = join(CWD, PLANS_DIR_NAME, `${planName}.md`);
+    try {
+        const stat = await Deno.stat(planPath);
+        if (!stat.isFile) return null;
+    } catch {
+        return null;
+    }
 
-  return { name: planName, path: planPath };
+    return { name: planName, path: planPath };
 }
 
 /**
@@ -57,97 +57,93 @@ async function resolveDeclaredPlan(messages) {
  * @returns {Promise<{ planName: string, planPath: string, approved: true } | null>}
  */
 export async function reviewLoop({
-  agentName,
-  toolNames,
-  initialPrompt,
-  customTools,
-  triageMeta,
-  maxRevisions = 5,
-  uiAPI,
+    agentName,
+    toolNames,
+    initialPrompt,
+    customTools,
+    triageMeta,
+    maxRevisions = 5,
+    uiAPI,
 }) {
-  let currentPrompt = initialPrompt;
-  let revision = 0;
+    let currentPrompt = initialPrompt;
+    let revision = 0;
 
-  while (revision < maxRevisions) {
-    if (revision === 0) {
-      if (uiAPI) {
-        uiAPI.appendSystemMessage(`[Harns] === Running ${agentName} ===`);
-      } else console.log(`\n[Harns] === Running ${agentName} ===\n`);
-    } else {
-      const msg = `[Harns] === Revising plan (attempt ${
-        revision + 1
-      }/${maxRevisions}) ===`;
-      if (uiAPI) uiAPI.appendSystemMessage(msg);
-      else console.log(`\n${msg}\n`);
+    while (revision < maxRevisions) {
+        if (revision === 0) {
+            if (uiAPI) {
+                uiAPI.appendSystemMessage(`[Harns] === Running ${agentName} ===`);
+            } else console.log(`\n[Harns] === Running ${agentName} ===\n`);
+        } else {
+            const msg = `[Harns] === Revising plan (attempt ${revision + 1}/${maxRevisions}) ===`;
+            if (uiAPI) uiAPI.appendSystemMessage(msg);
+            else console.log(`\n${msg}\n`);
+        }
+
+        const planningMessages = await runSession({
+            agentName,
+            toolNames,
+            customTools,
+            prompt: currentPrompt,
+            uiAPI,
+        });
+
+        const planInfo = await resolveDeclaredPlan(planningMessages);
+        if (!planInfo) {
+            const msg = "[Harns] ERROR: Agent did not declare a valid plan via plan_written.";
+            if (uiAPI) uiAPI.appendSystemMessage(msg);
+            else console.error(`\n${msg}`);
+            return null;
+        }
+
+        if (uiAPI) {
+            uiAPI.appendSystemMessage(
+                `[Harns] Plan created: plans/${planInfo.name}.md`,
+            );
+        } else console.log(`\n[Harns] Plan created: plans/${planInfo.name}.md`);
+
+        const result = await submitPlanForReview({
+            cwd: CWD,
+            planName: planInfo.name,
+            planPath: planInfo.path,
+            triageMeta,
+            uiAPI,
+        });
+
+        if (result.approved) {
+            return {
+                planName: planInfo.name,
+                planPath: planInfo.path,
+                approved: true,
+            };
+        }
+
+        revision++;
+        if (uiAPI) {
+            uiAPI.appendSystemMessage(
+                `[Harns] Plan denied. Feeding feedback back to ${agentName}...`,
+            );
+        } else {console.log(
+                `\n[Harns] Plan denied. Feeding feedback back to ${agentName}...`,
+            );}
+
+        currentPrompt = [
+            `## Previous Plan Feedback (Round ${revision})`,
+            "",
+            "Your plan was denied. Here is the structured feedback from the user:",
+            "",
+            result.feedback || "(no specific feedback provided)",
+            "",
+            `Please revise your plan in plans/${planInfo.name}.md based on this feedback.`,
+            "Use the `edit` tool to make targeted revisions — do NOT rewrite the entire plan.",
+            "Address each piece of feedback specifically.",
+            "After saving revisions, call the plan_written tool again with the same plan name.",
+        ].join("\n");
     }
 
-    const planningMessages = await runSession({
-      agentName,
-      toolNames,
-      customTools,
-      prompt: currentPrompt,
-      uiAPI,
-    });
-
-    const planInfo = await resolveDeclaredPlan(planningMessages);
-    if (!planInfo) {
-      const msg =
-        "[Harns] ERROR: Agent did not declare a valid plan via plan_written.";
-      if (uiAPI) uiAPI.appendSystemMessage(msg);
-      else console.error(`\n${msg}`);
-      return null;
-    }
-
-    if (uiAPI) {
-      uiAPI.appendSystemMessage(
-        `[Harns] Plan created: plans/${planInfo.name}.md`,
-      );
-    } else console.log(`\n[Harns] Plan created: plans/${planInfo.name}.md`);
-
-    const result = await submitPlanForReview({
-      cwd: CWD,
-      planName: planInfo.name,
-      planPath: planInfo.path,
-      triageMeta,
-      uiAPI,
-    });
-
-    if (result.approved) {
-      return {
-        planName: planInfo.name,
-        planPath: planInfo.path,
-        approved: true,
-      };
-    }
-
-    revision++;
-    if (uiAPI) {
-      uiAPI.appendSystemMessage(
-        `[Harns] Plan denied. Feeding feedback back to ${agentName}...`,
-      );
-    } else {console.log(
-        `\n[Harns] Plan denied. Feeding feedback back to ${agentName}...`,
-      );}
-
-    currentPrompt = [
-      `## Previous Plan Feedback (Round ${revision})`,
-      "",
-      "Your plan was denied. Here is the structured feedback from the user:",
-      "",
-      result.feedback || "(no specific feedback provided)",
-      "",
-      `Please revise your plan in plans/${planInfo.name}.md based on this feedback.`,
-      "Use the `edit` tool to make targeted revisions — do NOT rewrite the entire plan.",
-      "Address each piece of feedback specifically.",
-      "After saving revisions, call the plan_written tool again with the same plan name.",
-    ].join("\n");
-  }
-
-  const msg =
-    `[Harns] Max revisions (${maxRevisions}) reached. Plan not approved.`;
-  if (uiAPI) uiAPI.appendSystemMessage(msg);
-  else console.error(`\n${msg}`);
-  return null;
+    const msg = `[Harns] Max revisions (${maxRevisions}) reached. Plan not approved.`;
+    if (uiAPI) uiAPI.appendSystemMessage(msg);
+    else console.error(`\n${msg}`);
+    return null;
 }
 
 /**
@@ -158,15 +154,15 @@ export async function reviewLoop({
  * @returns {Promise<"proceed" | "save">}
  */
 export async function askPostApproval(planName, uiAPI) {
-  const title = `Plan "${planName}" approved! What next?`;
-  const options = [
-    { value: "proceed", label: "Proceed with execution" },
-    { value: "save", label: "Save for later" },
-  ];
-  const choice = uiAPI && uiAPI.promptSelect
-    ? await uiAPI.promptSelect(title, options)
-    : await select(title, options);
-  return choice === "proceed" ? "proceed" : "save";
+    const title = `Plan "${planName}" approved! What next?`;
+    const options = [
+        { value: "proceed", label: "Proceed with execution" },
+        { value: "save", label: "Save for later" },
+    ];
+    const choice = uiAPI && uiAPI.promptSelect
+        ? await uiAPI.promptSelect(title, options)
+        : await select(title, options);
+    return choice === "proceed" ? "proceed" : "save";
 }
 
 /**
@@ -176,28 +172,28 @@ export async function askPostApproval(planName, uiAPI) {
  * @returns {Array<{ task: number, assignee: string, dependencies: string, description: string }>}
  */
 export function extractTasks(planContent) {
-  const tasks =
-    /** @type {Array<{ task: number, assignee: string, dependencies: string, description: string }>} */ ([]);
-  const taskSection = planContent.match(
-    /### Tasks\s*\n([\s\S]*?)(?=\n###|\n##|$)/,
-  );
+    const tasks =
+        /** @type {Array<{ task: number, assignee: string, dependencies: string, description: string }>} */ ([]);
+    const taskSection = planContent.match(
+        /### Tasks\s*\n([\s\S]*?)(?=\n###|\n##|$)/,
+    );
 
-  if (!taskSection) return tasks;
+    if (!taskSection) return tasks;
 
-  const rows = taskSection[1].matchAll(
-    /\|\s*(\d+)\s*\|\s*(\w[\w-]*)\s*\|\s*([^|]*)\s*\|\s*([^|]*)\s*\|/g,
-  );
+    const rows = taskSection[1].matchAll(
+        /\|\s*(\d+)\s*\|\s*(\w[\w-]*)\s*\|\s*([^|]*)\s*\|\s*([^|]*)\s*\|/g,
+    );
 
-  for (const match of rows) {
-    tasks.push({
-      task: parseInt(match[1]),
-      assignee: match[2].trim(),
-      dependencies: match[3].trim(),
-      description: match[4].trim(),
-    });
-  }
+    for (const match of rows) {
+        tasks.push({
+            task: parseInt(match[1]),
+            assignee: match[2].trim(),
+            dependencies: match[3].trim(),
+            description: match[4].trim(),
+        });
+    }
 
-  return tasks;
+    return tasks;
 }
 
 /**
@@ -208,82 +204,79 @@ export function extractTasks(planContent) {
  * @param {UiAPI} [uiAPI]
  */
 export async function executePlan(planName, triageMeta, uiAPI) {
-  const plan = await loadPlan(CWD, planName);
-  if (!plan) {
-    const err = `[Harns] ERROR: Could not load plan ${planName}`;
-    if (uiAPI) uiAPI.appendSystemMessage(err);
-    else console.error(err);
-    Deno.exit(1);
-  }
-
-  if (uiAPI) {
-    uiAPI.appendSystemMessage(`[Harns] === Executing Plan: ${planName} ===`);
-  } else console.log(`\n[Harns] === Executing Plan: ${planName} ===\n`);
-
-  if (triageMeta.classification === "PROJECT") {
-    const tasks = extractTasks(plan.markdown);
-
-    if (tasks.length > 0) {
-      if (uiAPI) {
-        uiAPI.appendSystemMessage(
-          `[Harns] Found ${tasks.length} tasks in plan. Executing in dependency order.`,
-        );
-      } else {console.log(
-          `[Harns] Found ${tasks.length} tasks in plan. Executing in dependency order.\n`,
-        );}
-
-      for (const task of tasks) {
-        const agentName = task.assignee === "engineer"
-          ? "engineer"
-          : task.assignee === "tester"
-          ? "tester"
-          : task.assignee === "doc-writer"
-          ? "doc-writer"
-          : "engineer";
-
-        const header =
-          `[Harns] --- Task ${task.task}: ${task.description} (→ ${agentName}) ---`;
-        if (uiAPI) uiAPI.appendSystemMessage(header);
-        else console.log(`\n${header}\n`);
-
-        const taskPrompt = [
-          "## Task Assignment",
-          "",
-          `You are assigned Task ${task.task} from the plan "${planName}".`,
-          "",
-          "### Task Description",
-          task.description,
-          "",
-          "### Dependencies",
-          task.dependencies || "None",
-          "",
-          "### Full Plan Context",
-          plan.body,
-        ].join("\n");
-
-        const taskTools = agentName === "doc-writer"
-          ? TOOLSETS.DOC_WRITER
-          : TOOLSETS.ENGINEER;
-
-        await runSession({
-          agentName,
-          toolNames: taskTools,
-          prompt: taskPrompt,
-          uiAPI,
-        });
-      }
-    } else {
-      await runEngineerWithPlan(planName, plan.body, uiAPI);
+    const plan = await loadPlan(CWD, planName);
+    if (!plan) {
+        const err = `[Harns] ERROR: Could not load plan ${planName}`;
+        if (uiAPI) uiAPI.appendSystemMessage(err);
+        else console.error(err);
+        Deno.exit(1);
     }
-  } else {
-    await runEngineerWithPlan(planName, plan.body, uiAPI);
-  }
 
-  if (uiAPI) {
-    uiAPI.appendSystemMessage(
-      `[Harns] ✅ Plan execution complete: ${planName}`,
-    );
-  } else console.log(`\n[Harns] ✅ Plan execution complete: ${planName}`);
+    if (uiAPI) {
+        uiAPI.appendSystemMessage(`[Harns] === Executing Plan: ${planName} ===`);
+    } else console.log(`\n[Harns] === Executing Plan: ${planName} ===\n`);
+
+    if (triageMeta.classification === "PROJECT") {
+        const tasks = extractTasks(plan.markdown);
+
+        if (tasks.length > 0) {
+            if (uiAPI) {
+                uiAPI.appendSystemMessage(
+                    `[Harns] Found ${tasks.length} tasks in plan. Executing in dependency order.`,
+                );
+            } else {console.log(
+                    `[Harns] Found ${tasks.length} tasks in plan. Executing in dependency order.\n`,
+                );}
+
+            for (const task of tasks) {
+                const agentName = task.assignee === "engineer"
+                    ? "engineer"
+                    : task.assignee === "tester"
+                    ? "tester"
+                    : task.assignee === "doc-writer"
+                    ? "doc-writer"
+                    : "engineer";
+
+                const header = `[Harns] --- Task ${task.task}: ${task.description} (→ ${agentName}) ---`;
+                if (uiAPI) uiAPI.appendSystemMessage(header);
+                else console.log(`\n${header}\n`);
+
+                const taskPrompt = [
+                    "## Task Assignment",
+                    "",
+                    `You are assigned Task ${task.task} from the plan "${planName}".`,
+                    "",
+                    "### Task Description",
+                    task.description,
+                    "",
+                    "### Dependencies",
+                    task.dependencies || "None",
+                    "",
+                    "### Full Plan Context",
+                    plan.body,
+                ].join("\n");
+
+                const taskTools = agentName === "doc-writer" ? TOOLSETS.DOC_WRITER : TOOLSETS.ENGINEER;
+
+                await runSession({
+                    agentName,
+                    toolNames: taskTools,
+                    prompt: taskPrompt,
+                    uiAPI,
+                });
+            }
+        } else {
+            await runEngineerWithPlan(planName, plan.body, uiAPI);
+        }
+    } else {
+        await runEngineerWithPlan(planName, plan.body, uiAPI);
+    }
+
+    if (uiAPI) {
+        uiAPI.appendSystemMessage(
+            `[Harns] ✅ Plan execution complete: ${planName}`,
+        );
+    } else console.log(`\n[Harns] ✅ Plan execution complete: ${planName}`);
 }
 
 /**
@@ -294,29 +287,29 @@ export async function executePlan(planName, triageMeta, uiAPI) {
  * @returns {Promise<"proceed" | "save">}
  */
 export async function askApprovalWithTasks(planName, uiAPI) {
-  const plan = await loadPlan(CWD, planName);
-  const tasks = plan ? extractTasks(plan.markdown) : [];
+    const plan = await loadPlan(CWD, planName);
+    const tasks = plan ? extractTasks(plan.markdown) : [];
 
-  let title = `Project plan "${planName}" approved!`;
-  if (tasks.length > 0) {
-    title += `\nTasks:\n` +
-      tasks.map((t) => `  ${t.task}. [${t.assignee}] ${t.description}`).join(
-        "\n",
-      );
-  }
+    let title = `Project plan "${planName}" approved!`;
+    if (tasks.length > 0) {
+        title += `\nTasks:\n` +
+            tasks.map((t) => `  ${t.task}. [${t.assignee}] ${t.description}`).join(
+                "\n",
+            );
+    }
 
-  const options = [
-    {
-      value: "proceed",
-      label: "Proceed with execution (tasks run in dependency order)",
-    },
-    { value: "save", label: "Save for later" },
-  ];
+    const options = [
+        {
+            value: "proceed",
+            label: "Proceed with execution (tasks run in dependency order)",
+        },
+        { value: "save", label: "Save for later" },
+    ];
 
-  const choice = uiAPI && uiAPI.promptSelect
-    ? await uiAPI.promptSelect(`${title}\nWhat next?`, options)
-    : await select(`${title}\nWhat next?`, options);
-  return choice === "proceed" ? "proceed" : "save";
+    const choice = uiAPI && uiAPI.promptSelect
+        ? await uiAPI.promptSelect(`${title}\nWhat next?`, options)
+        : await select(`${title}\nWhat next?`, options);
+    return choice === "proceed" ? "proceed" : "save";
 }
 
 /**
@@ -327,21 +320,21 @@ export async function askApprovalWithTasks(planName, uiAPI) {
  * @param {UiAPI} [uiAPI]
  */
 async function runEngineerWithPlan(planName, planBody, uiAPI) {
-  if (uiAPI) uiAPI.appendSystemMessage("[Harns] === Running Engineer ===");
-  else console.log("[Harns] === Running Engineer ===\n");
+    if (uiAPI) uiAPI.appendSystemMessage("[Harns] === Running Engineer ===");
+    else console.log("[Harns] === Running Engineer ===\n");
 
-  const engineerPrompt = [
-    `## Approved Plan: ${planName}`,
-    "",
-    "Execute the following plan step by step. Implement each step, verify the result, then move on.",
-    "",
-    planBody,
-  ].join("\n");
+    const engineerPrompt = [
+        `## Approved Plan: ${planName}`,
+        "",
+        "Execute the following plan step by step. Implement each step, verify the result, then move on.",
+        "",
+        planBody,
+    ].join("\n");
 
-  await runSession({
-    agentName: "engineer",
-    toolNames: TOOLSETS.ENGINEER,
-    prompt: engineerPrompt,
-    uiAPI,
-  });
+    await runSession({
+        agentName: "engineer",
+        toolNames: TOOLSETS.ENGINEER,
+        prompt: engineerPrompt,
+        uiAPI,
+    });
 }

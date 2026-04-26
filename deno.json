@@ -1,33 +1,37 @@
 {
-  "compilerOptions": {
-    "checkJs": true
-  },
-  "imports": {
-    "@mariozechner/pi-tui": "npm:@mariozechner/pi-tui@^0.68.1",
-    "chalk": "npm:chalk@^5.4.1",
-    "@mariozechner/pi-ai": "npm:@mariozechner/pi-ai@^0.68.1",
-    "@mariozechner/pi-coding-agent": "npm:@mariozechner/pi-coding-agent@^0.68.1",
-    "@sinclair/typebox": "npm:@sinclair/typebox@^0.34.41",
-    "@mariozechner/pi-agent-core": "npm:@mariozechner/pi-agent-core@^0.68.1",
-    "@std/front-matter": "jsr:@std/front-matter@^1.0.0",
-    "@std/path": "jsr:@std/path@^1.0.0",
-    "@std/assert": "jsr:@std/assert@^1.0.0",
-    "@std/cli/parse-args": "jsr:@std/cli@^1.0.0/parse-args",
-    "@gandazgul/plannotator-pi-extension-compiled": "npm:@gandazgul/plannotator-pi-extension-compiled@^1.0.0",
-    "@gandazgul/plannotator-pi-extension-compiled/server": "npm:@gandazgul/plannotator-pi-extension-compiled@^1.0.0/server",
-    "@gandazgul/plannotator-pi-extension-compiled/assets": "npm:@gandazgul/plannotator-pi-extension-compiled@^1.0.0/assets",
-    "turndown": "npm:turndown@^7.2.4",
-    "@joplin/turndown-plugin-gfm": "npm:@joplin/turndown-plugin-gfm@^1.0.64"
-  },
-  "tasks": {
-    "ci": "deno task check && deno lint && deno fmt --check",
-    "cli": "deno run -A src/cli.js",
-    "check": "deno check src/cli.js",
-    "resume": "deno run -A src/cli.js resume",
-    "compile": "deno compile -A --include .pi/agents --output ./bin/hns src/cli.js"
-  },
-  "exclude": [
-    "node_modules",
-    ".idea"
-  ]
+    "compilerOptions": {
+        "checkJs": true
+    },
+    "imports": {
+        "@mariozechner/pi-tui": "npm:@mariozechner/pi-tui@^0.68.1",
+        "chalk": "npm:chalk@^5.4.1",
+        "@mariozechner/pi-ai": "npm:@mariozechner/pi-ai@^0.68.1",
+        "@mariozechner/pi-coding-agent": "npm:@mariozechner/pi-coding-agent@^0.68.1",
+        "@sinclair/typebox": "npm:@sinclair/typebox@^0.34.41",
+        "@mariozechner/pi-agent-core": "npm:@mariozechner/pi-agent-core@^0.68.1",
+        "@std/front-matter": "jsr:@std/front-matter@^1.0.0",
+        "@std/path": "jsr:@std/path@^1.0.0",
+        "@std/assert": "jsr:@std/assert@^1.0.0",
+        "@std/cli/parse-args": "jsr:@std/cli@^1.0.0/parse-args",
+        "@gandazgul/plannotator-pi-extension-compiled": "npm:@gandazgul/plannotator-pi-extension-compiled@^1.0.0",
+        "@gandazgul/plannotator-pi-extension-compiled/server": "npm:@gandazgul/plannotator-pi-extension-compiled@^1.0.0/server",
+        "@gandazgul/plannotator-pi-extension-compiled/assets": "npm:@gandazgul/plannotator-pi-extension-compiled@^1.0.0/assets",
+        "turndown": "npm:turndown@^7.2.4",
+        "@joplin/turndown-plugin-gfm": "npm:@joplin/turndown-plugin-gfm@^1.0.64"
+    },
+    "tasks": {
+        "ci": "deno task check && deno lint && deno fmt --check",
+        "cli": "deno run -A src/cli.js",
+        "check": "deno check src/cli.js",
+        "resume": "deno run -A src/cli.js resume",
+        "compile": "deno compile -A --include .pi/agents --output ./bin/hns src/cli.js"
+    },
+    "fmt": {
+        "lineWidth": 120,
+        "indentWidth": 4
+    },
+    "exclude": [
+        "node_modules",
+        ".idea"
+    ]
 }
