@@ -1,6 +1,6 @@
-# Harns
+<p align="center"><img src="logo.svg" width="120" /></p>
 
-Harns is an opinionated, **plan-by-default coding harness** built on top of Pi
+**Harns** is an opinionated, **plan-by-default coding harness** built on top of Pi
 agents.
 
 It routes incoming requests through triage, creates reviewable plans for
