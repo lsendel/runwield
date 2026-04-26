@@ -108,6 +108,7 @@ export async function reviewLoop({
       planName: planInfo.name,
       planPath: planInfo.path,
       triageMeta,
+      uiAPI,
     });
 
     if (result.approved) {

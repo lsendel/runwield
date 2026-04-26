@@ -20,18 +20,29 @@ memory, and treating the SDLC as a series of intentional gates.
 
 ## 3. Core Features & Functional Requirements
 
-### 3.1 Adaptive Path Engine (The Router)
+### 3.1 The TUI Shell & Agent Workflows
 
-The system must automatically triage incoming requests into one of three paths:
+The primary interface for Harns is the TUI Shell. It acts as a universal host
+for interacting with different agents. By default, when the TUI opens, the user
+talks to the **Router** agent. The Router is not a special system wrapper; it is
+a peer agent (like the Architect, Planner, or Coder) that simply acts as the
+default triage point.
+
+**The Router (Adaptive Path Engine):** When active, the Router automatically
+triages incoming requests into one of three paths:
 
 - **Quick Fix:** Troubleshooting and rapid changes with no upfront decisions.
-  Uses Debugger or Execution agents. Exception for operational tasks (e.g.,
-  "deploy to prod") which don't require a plan.
-- **Feature:** Requires upfront clarification and a structured plan (inspired by
-  Plannotator.ai). Can be decomposed into dependent tasks.
-- **Project:** Large-scale changes or new initiatives. Requires a dedicated
-  **Explore Agent** for context gathering and an **Architect Agent** for a
-  formal proposal.
+  Uses Debugger or Execution agents.
+- **Feature:** Requires upfront clarification and a structured plan. Can be
+  decomposed into dependent tasks.
+- **Project:** Large-scale changes. Requires a dedicated **Explore Agent** for
+  context gathering and an **Architect Agent** for a formal proposal.
+
+**Dynamic Agent Switching:** Users can switch the active agent they are
+conversing with using slash commands (e.g. `/resume <plan>`). When `/resume` is
+invoked, the TUI drops the Router and connects the user directly to the Planner
+or Architect agent managing that specific plan. This works seamlessly whether
+the TUI was already running or if it was started via `hns resume <plan>`.
 
 ### 3.2 Advanced Memory & Indexing
 

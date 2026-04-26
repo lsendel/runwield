@@ -57,7 +57,7 @@ export async function readClipboardImage() {
     // Cleanup and return null if extraction failed
     try {
       await Deno.remove(tempFile);
-    } catch {}
+    } catch (_e) { /* ignore */ }
     return null;
   }
 
@@ -75,13 +75,13 @@ export async function readClipboardImage() {
         mimeType: "image/png",
       };
     }
-  } catch (err) {
+  } catch (_err) {
     // Ignore error
   } finally {
     // Cleanup
     try {
       await Deno.remove(tempFile);
-    } catch {}
+    } catch (_e) { /* ignore */ }
   }
 
   return null;

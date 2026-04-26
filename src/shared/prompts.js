@@ -13,7 +13,7 @@ import { selectListTheme, theme } from "./theme.js";
  * @param {Array<{value: string, label: string, description?: string}>} options
  * @returns {Promise<string | null>}
  */
-export async function select(title, options) {
+export function select(title, options) {
   const { tui } = getTUI();
 
   return new Promise((resolve) => {

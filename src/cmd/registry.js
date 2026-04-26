@@ -11,7 +11,7 @@ import { runRouterCommand } from "./router/index.js";
 import { runSleepCommand } from "./sleep/index.js";
 
 /**
- * @typedef {(argv: string[]) => Promise<void>} CommandHandler
+ * @typedef {(argv: string[], options?: any) => Promise<void>} CommandHandler
  */
 
 /** @type {Record<string, CommandHandler>} */

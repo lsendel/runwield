@@ -73,6 +73,7 @@ async function openInDefaultBrowser(url) {
  * @param {string} opts.planName - Plan filename (without .md)
  * @param {string} opts.planPath - Absolute path to the plan .md file
  * @param {Partial<import('../plan-store.js').PlanFrontMatter>} [opts.triageMeta] - Triage metadata to ensure in front matter
+ * @param {import('../shared/workflow.js').UiAPI} [opts.uiAPI] - Optional UI API for output
  * @returns {Promise<PlanReviewResult>}
  */
 export async function submitPlanForReview({
@@ -80,6 +81,7 @@ export async function submitPlanForReview({
   planName,
   planPath,
   triageMeta,
+  uiAPI,
 }) {
   // 1. Read plan
   const planContent = await Deno.readTextFile(planPath);
@@ -109,8 +111,13 @@ export async function submitPlanForReview({
   // 3. Use HTML embedded in package exports (compile-safe; no runtime fs lookup).
   const htmlContent = plannotatorHtml;
 
-  console.log(`\n[Harns] Opening plan review UI for: ${planName}`);
-  console.log(`[Harns] Plan file: ${planPath}`);
+  const log = (/** @type {string} */ msg) => {
+    if (uiAPI) uiAPI.appendSystemMessage(msg);
+    else console.log(msg);
+  };
+
+  log(`\n[Harns] Opening plan review UI for: ${planName}`);
+  log(`[Harns] Plan file: ${planPath}`);
 
   // 4. Start review server IN-PROCESS
   const server = await startPlanReviewServer({
@@ -119,18 +126,16 @@ export async function submitPlanForReview({
     origin: "harns",
   });
 
-  console.log(`[Harns] Review UI available at: ${server.url}`);
+  log(`[Harns] Review UI available at: ${server.url}`);
 
   const opened = await openInDefaultBrowser(server.url);
   if (opened) {
-    console.log(`[Harns] Opened review UI in your default browser.`);
+    log(`[Harns] Opened review UI in your default browser.`);
   } else {
-    console.log(
-      `[Harns] Could not auto-open browser. Open manually: ${server.url}`,
-    );
+    log(`[Harns] Could not auto-open browser. Open manually: ${server.url}`);
   }
 
-  console.log(`[Harns] Waiting for user decision...`);
+  log(`[Harns] Waiting for user decision...`);
 
   try {
     // 5. Wait for user decide (blocks until approve/deny)
@@ -139,10 +144,10 @@ export async function submitPlanForReview({
     // 6. Update status
     if (decision.approved) {
       await updatePlanStatus(cwd, planName, "approved");
-      console.log(`\n[Harns] ✅ Plan approved: ${planName}`);
+      log(`\n[Harns] ✅ Plan approved: ${planName}`);
     } else {
       await updatePlanStatus(cwd, planName, "denied");
-      console.log(`\n[Harns] ❌ Plan denied: ${planName}`);
+      log(`\n[Harns] ❌ Plan denied: ${planName}`);
     }
 
     return {
