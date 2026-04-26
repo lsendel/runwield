@@ -24,7 +24,7 @@ const colors = {
   mauve: "#cba6f7", // Accent
   red: "#f38ba8", // Error
   maroon: "#eba0ac",
-  peach: "#fab387", 
+  peach: "#fab387",
   yellow: "#f9e2af", // Warning
   green: "#a6e3a1", // Success
   teal: "#94e2d5",

@@ -35,10 +35,16 @@ The system must automatically triage incoming requests into one of three paths:
 
 ### 3.2 Advanced Memory & Indexing
 
-- **Mnemosyne Integration:** (Active) A "Day Zero" memory system that gathers core memories, user preferences, and project architecture during `init`. Supports global and project-scoped persistent memory with `core` tagging for critical context.
-- **Memory Maintenance:** Includes a `sleep` command for memory cleanup, organization, and optimization using built-in operator prompts.
-- **Hybrid Indexing:** Fast structural mapping using `ripgrep` and `Tree-sitter`, with semantic search powered by `LanceDB`.
-- **Project Brief:** A highly compressed "DNA" summary injected into every prompt to maintain context without bloat.
+- **Mnemosyne Integration:** (Active) A "Day Zero" memory system that gathers
+  core memories, user preferences, and project architecture during `init`.
+  Supports global and project-scoped persistent memory with `core` tagging for
+  critical context.
+- **Memory Maintenance:** Includes a `sleep` command for memory cleanup,
+  organization, and optimization using built-in operator prompts.
+- **Hybrid Indexing:** Fast structural mapping using `ripgrep` and
+  `Tree-sitter`, with semantic search powered by `LanceDB`.
+- **Project Brief:** A highly compressed "DNA" summary injected into every
+  prompt to maintain context without bloat.
 
 ### 3.3 Dynamic Agent Specialization ("The Forge")
 

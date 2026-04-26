@@ -27,17 +27,20 @@ export async function readClipboardImage() {
       end try`,
     ],
   });
-  
+
   const checkRes = await checkCmd.output();
   const checkOutput = new TextDecoder().decode(checkRes.stdout).trim();
-  
+
   if (checkOutput !== "image") {
     return null; // No image in clipboard
   }
 
   // 2. Extract the image to a temporary file
-  const tempFile = await Deno.makeTempFile({ prefix: "harns-clipboard-", suffix: ".png" });
-  
+  const tempFile = await Deno.makeTempFile({
+    prefix: "harns-clipboard-",
+    suffix: ".png",
+  });
+
   const extractCmd = new Deno.Command("osascript", {
     args: [
       "-e",
@@ -48,11 +51,13 @@ export async function readClipboardImage() {
       close access theFile`,
     ],
   });
-  
+
   const extractRes = await extractCmd.output();
   if (!extractRes.success) {
     // Cleanup and return null if extraction failed
-    try { await Deno.remove(tempFile); } catch {}
+    try {
+      await Deno.remove(tempFile);
+    } catch {}
     return null;
   }
 
@@ -61,7 +66,10 @@ export async function readClipboardImage() {
     const base64Cmd = new Deno.Command("base64", { args: ["-i", tempFile] });
     const base64Res = await base64Cmd.output();
     if (base64Res.success) {
-      const base64Data = new TextDecoder().decode(base64Res.stdout).replace(/\\s+/g, "");
+      const base64Data = new TextDecoder().decode(base64Res.stdout).replace(
+        /\\s+/g,
+        "",
+      );
       return {
         base64: base64Data,
         mimeType: "image/png",
@@ -71,7 +79,9 @@ export async function readClipboardImage() {
     // Ignore error
   } finally {
     // Cleanup
-    try { await Deno.remove(tempFile); } catch {}
+    try {
+      await Deno.remove(tempFile);
+    } catch {}
   }
 
   return null;

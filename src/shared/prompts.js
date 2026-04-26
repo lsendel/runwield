@@ -3,9 +3,9 @@
  * Interactive prompt overlays for the TUI.
  */
 
-import { Container, Text, SelectList } from "@mariozechner/pi-tui";
+import { Container, SelectList, Text } from "@mariozechner/pi-tui";
 import { getTUI } from "./tui.js";
-import { theme, selectListTheme } from "./theme.js";
+import { selectListTheme, theme } from "./theme.js";
 
 /**
  * Show a multiple-choice select overlay.
@@ -26,7 +26,7 @@ export async function select(title, options) {
     const selectList = new SelectList(
       options,
       Math.min(options.length, 10),
-      selectListTheme
+      selectListTheme,
     );
 
     /** @type {any} */
@@ -44,7 +44,13 @@ export async function select(title, options) {
 
     container.addChild(selectList);
     container.addChild(new Text("─".repeat(40), 1, 0));
-    container.addChild(new Text(theme.fg("dim", "↑↓ navigate • enter select • esc cancel"), 1, 0));
+    container.addChild(
+      new Text(
+        theme.fg("dim", "↑↓ navigate • enter select • esc cancel"),
+        1,
+        0,
+      ),
+    );
 
     const component = {
       /** @param {any} w */
@@ -54,14 +60,14 @@ export async function select(title, options) {
       handleInput: (data) => {
         selectList.handleInput(data);
         tui.requestRender();
-      }
+      },
     };
 
     handle = tui.showOverlay(component, {
       width: "80%",
       minWidth: 40,
       anchor: "center",
-      margin: 2
+      margin: 2,
     });
   });
 }
@@ -74,7 +80,7 @@ export async function select(title, options) {
 export async function confirm(message) {
   const result = await select(message, [
     { value: "yes", label: "Yes" },
-    { value: "no", label: "No" }
+    { value: "no", label: "No" },
   ]);
   return result === "yes";
 }

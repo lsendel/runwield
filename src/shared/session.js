@@ -94,9 +94,13 @@ export async function runSession(
   const agentDef = await loadAgent(agentName, agentDir);
 
   if (uiAPI) {
-    uiAPI.appendSystemMessage(`[Harns] Loading agent: ${agentDef.name} (model: ${agentDef.model})`);
+    uiAPI.appendSystemMessage(
+      `[Harns] Loading agent: ${agentDef.name} (model: ${agentDef.model})`,
+    );
   } else {
-    console.log(`\n[Harns] Loading agent: ${agentDef.name} (model: ${agentDef.model})`);
+    console.log(
+      `\n[Harns] Loading agent: ${agentDef.name} (model: ${agentDef.model})`,
+    );
   }
 
   const loader = new DefaultResourceLoader({
@@ -118,10 +122,13 @@ export async function runSession(
   if (extensionsResult?.errors?.length) {
     for (const err of extensionsResult.errors) {
       const msg = `[Harns] Extension warning (${err.path}): ${err.error}`;
-      if (uiAPI) uiAPI.appendSystemMessage(msg); else console.warn(msg);
+      if (uiAPI) uiAPI.appendSystemMessage(msg);
+      else console.warn(msg);
       if (String(err.error).toLowerCase().includes("mnemosyne")) {
-        const msg2 = "[Harns] Memory extension issue detected. Install mnemosyne: https://github.com/gandazgul/mnemosyne#quick-start";
-        if (uiAPI) uiAPI.appendSystemMessage(msg2); else console.warn(msg2);
+        const msg2 =
+          "[Harns] Memory extension issue detected. Install mnemosyne: https://github.com/gandazgul/mnemosyne#quick-start";
+        if (uiAPI) uiAPI.appendSystemMessage(msg2);
+        else console.warn(msg2);
       }
     }
   }
@@ -138,7 +145,9 @@ export async function runSession(
         if (event.assistantMessageEvent.type === "text_delta") {
           if (uiAPI) {
             if (!currentMarkdownBlock) {
-              currentMarkdownBlock = uiAPI.appendAgentMessageStart(agentDef.name);
+              currentMarkdownBlock = uiAPI.appendAgentMessageStart(
+                agentDef.name,
+              );
             }
             currentMarkdownBlock.appendText(event.assistantMessageEvent.delta);
             uiAPI.requestRender();
@@ -154,17 +163,21 @@ export async function runSession(
         const filePath = getFilePathForTool(event.toolName, event.args);
         let msg = `[Tool] ${event.toolName}`;
         if (filePath) msg += `\n  📄 ${filePath}`;
-        if (event.toolName === "bash") msg += `\n    Command: ${event.args?.command || "N/A"}`;
-        
+        if (event.toolName === "bash") {
+          msg += `\n    Command: ${event.args?.command || "N/A"}`;
+        }
+
         if (uiAPI) {
           uiAPI.appendSystemMessage(msg);
         } else {
-          console.log(`\n  ${msg.replace(/\n/g, '\n  ')}`);
+          console.log(`\n  ${msg.replace(/\n/g, "\n  ")}`);
         }
         break;
       }
       case "tool_execution_end": {
-        const msg = `[Tool] ${event.toolName} — ${event.isError ? "error" : "ok"}`;
+        const msg = `[Tool] ${event.toolName} — ${
+          event.isError ? "error" : "ok"
+        }`;
         if (uiAPI) {
           uiAPI.appendSystemMessage(msg);
         } else {
@@ -177,10 +190,10 @@ export async function runSession(
 
   const promptOptions = {};
   if (images && images.length > 0) {
-    promptOptions.images = images.map(img => ({
+    promptOptions.images = images.map((img) => ({
       type: /** @type {"image"} */ ("image"),
       data: img.base64,
-      mimeType: img.mimeType
+      mimeType: img.mimeType,
     }));
   }
 

@@ -26,7 +26,7 @@ export async function runRouterCommand(argv) {
   }
 
   const userRequest = argv.join(" ").trim();
-  
+
   // Launch the interactive TUI session with the router as the default handler
   await startInteractiveSession(userRequest, runRouterCommandImpl);
 }
