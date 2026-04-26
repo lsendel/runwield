@@ -19,6 +19,7 @@ export async function startInteractiveSession(initialPrompt, onMessage) {
   const container = new Container();
   
   // Header
+  container.addChild(new Spacer(1));
   container.addChild(new Text(theme.fg("accent", theme.bold("Harns ─ Plan-by-Default Harness")), 1, 0));
   container.addChild(new Spacer(1));
   
@@ -26,17 +27,65 @@ export async function startInteractiveSession(initialPrompt, onMessage) {
   container.addChild(messageList);
   container.addChild(new Spacer(1));
   
+  /** @type {Array<{base64: string, mimeType: string}>} */
+  const pastedImages = [];
+  const previewImages = new Container();
+  container.addChild(previewImages);
+  
   const editor = new Editor(tui, editorTheme);
   container.addChild(editor);
+
+  // Footer
+  const cwd = Deno.cwd().replace(Deno.env.get("HOME") || "", "~");
+  let branch = "main";
+  try {
+    const cmd = new Deno.Command("git", { args: ["branch", "--show-current"] });
+    const { success, stdout } = cmd.outputSync();
+    if (success) {
+      branch = new TextDecoder().decode(stdout).trim();
+    }
+  } catch (e) {
+    branch = "unknown";
+  }
+  let model = "gemini-2.5-flash";
+  let provider = "unknown";
+  try {
+    const homeDir = Deno.env.get("HOME") || "";
+    /** @type {Record<string, any>} */
+    let settings = {};
+    try {
+      const globalPath = `${homeDir}/.pi/agent/settings.json`;
+      settings = JSON.parse(Deno.readTextFileSync(globalPath));
+    } catch (e) {}
+    try {
+      const localPath = `${Deno.cwd()}/.pi/settings.json`;
+      const projSettings = JSON.parse(Deno.readTextFileSync(localPath));
+      settings = { ...settings, ...projSettings };
+    } catch (e) {}
+    
+    if (settings.defaultModel) model = settings.defaultModel;
+    if (settings.defaultProvider) provider = settings.defaultProvider;
+  } catch (e) {}
+
+  const footer = {
+    invalidate: () => {},
+    /** @param {number} w */
+    render: (w) => {
+      const leftStr = `${cwd} (${branch})`;
+      const rightStr = `(${provider}) ${model}`;
+      const spaceCount = Math.max(0, w - leftStr.length - rightStr.length - 1);
+      return [theme.fg("dim", " " + leftStr + " ".repeat(spaceCount) + rightStr)];
+    }
+  };
+  container.addChild(footer);
   
   const rootWrapper = {
     invalidate: () => container.invalidate(),
     /** @param {number} w */
     render: (w) => {
-      const margin = 2;
-      const rendered = container.render(Math.max(10, w - margin * 2));
-      const pad = " ".repeat(margin);
-      return rendered.map(line => pad + line);
+      const rightMargin = 2;
+      const rendered = container.render(Math.max(10, w - rightMargin));
+      return rendered;
     }
   };
   
@@ -94,9 +143,16 @@ export async function startInteractiveSession(initialPrompt, onMessage) {
     const prompt = text.trim();
     if (!prompt) return;
     
-    if (prompt === "/quit" || prompt === "/exit") {
-      stopTUI();
-      Deno.exit(0);
+    if (prompt === "/quit" || prompt === "/exit" || prompt === "/q") {
+      editor.setText("");
+      tui.requestRender();
+      // Wait for render before stopping TUI
+      setTimeout(() => {
+        stopTUI();
+        // Fallback exit in case event loop is not empty
+        setTimeout(() => Deno.exit(0), 100);
+      }, 50);
+      return;
     }
     
     editor.disableSubmit = true;
@@ -104,7 +160,7 @@ export async function startInteractiveSession(initialPrompt, onMessage) {
     
     // Check if there are queued images (pasted)
     const images = [...pastedImages];
-    pastedImages = [];
+    pastedImages.length = 0; // clear array in place
     previewImages.clear(); // remove previews
     
     uiAPI.appendUserMessage(prompt);
@@ -120,12 +176,8 @@ export async function startInteractiveSession(initialPrompt, onMessage) {
     }
   };
 
-  /** @type {Array<{base64: string, mimeType: string}>} */
-  let pastedImages = [];
-  const previewImages = new Container();
-  container.removeChild(editor);
-  container.addChild(previewImages);
-  container.addChild(editor);
+    // Re-render UI after handling pasted images
+    tui.requestRender();
 
   // Custom keybindings for Editor
   const originalHandleInput = editor.handleInput.bind(editor);
