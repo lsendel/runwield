@@ -83,16 +83,21 @@ export async function loadAgent(agentName, agentDir) {
  * @param {string[]} opts.toolNames
  * @param {import('@mariozechner/pi-coding-agent').ToolDefinition[]} [opts.customTools]
  * @param {string} opts.prompt
+ * @param {Array<{base64: string, mimeType: string}>} [opts.images]
+ * @param {import('./workflow.js').UiAPI} [opts.uiAPI]
  * @returns {Promise<import('@mariozechner/pi-agent-core').AgentMessage[]>}
  */
 export async function runSession(
-  { agentName, toolNames, customTools, prompt },
+  { agentName, toolNames, customTools, prompt, images, uiAPI },
 ) {
   const agentDir = await resolveAgentDir();
   const agentDef = await loadAgent(agentName, agentDir);
-  console.log(
-    `\n[Harns] Loading agent: ${agentDef.name} (model: ${agentDef.model})`,
-  );
+
+  if (uiAPI) {
+    uiAPI.appendSystemMessage(`[Harns] Loading agent: ${agentDef.name} (model: ${agentDef.model})`);
+  } else {
+    console.log(`\n[Harns] Loading agent: ${agentDef.name} (model: ${agentDef.model})`);
+  }
 
   const loader = new DefaultResourceLoader({
     cwd: CWD,
@@ -112,11 +117,11 @@ export async function runSession(
 
   if (extensionsResult?.errors?.length) {
     for (const err of extensionsResult.errors) {
-      console.warn(`[Harns] Extension warning (${err.path}): ${err.error}`);
+      const msg = `[Harns] Extension warning (${err.path}): ${err.error}`;
+      if (uiAPI) uiAPI.appendSystemMessage(msg); else console.warn(msg);
       if (String(err.error).toLowerCase().includes("mnemosyne")) {
-        console.warn(
-          "[Harns] Memory extension issue detected. Install mnemosyne: https://github.com/gandazgul/mnemosyne#quick-start",
-        );
+        const msg2 = "[Harns] Memory extension issue detected. Install mnemosyne: https://github.com/gandazgul/mnemosyne#quick-start";
+        if (uiAPI) uiAPI.appendSystemMessage(msg2); else console.warn(msg2);
       }
     }
   }
@@ -124,38 +129,62 @@ export async function runSession(
   // Ensure extension lifecycle hooks (e.g. session_start) are activated.
   await session.bindExtensions({});
 
+  /** @type {any} */
+  let currentMarkdownBlock = null;
+
   session.subscribe((event) => {
     switch (event.type) {
       case "message_update": {
         if (event.assistantMessageEvent.type === "text_delta") {
-          Deno.stdout.writeSync(
-            new TextEncoder().encode(event.assistantMessageEvent.delta),
-          );
+          if (uiAPI) {
+            if (!currentMarkdownBlock) {
+              currentMarkdownBlock = uiAPI.appendAgentMessageStart(agentDef.name);
+            }
+            currentMarkdownBlock.appendText(event.assistantMessageEvent.delta);
+            uiAPI.requestRender();
+          } else {
+            Deno.stdout.writeSync(
+              new TextEncoder().encode(event.assistantMessageEvent.delta),
+            );
+          }
         }
         break;
       }
       case "tool_execution_start": {
         const filePath = getFilePathForTool(event.toolName, event.args);
-        if (filePath) {
-          console.log(`\n  [Tool] ${event.toolName}\n  📄 ${filePath}`);
+        let msg = `[Tool] ${event.toolName}`;
+        if (filePath) msg += `\n  📄 ${filePath}`;
+        if (event.toolName === "bash") msg += `\n    Command: ${event.args?.command || "N/A"}`;
+        
+        if (uiAPI) {
+          uiAPI.appendSystemMessage(msg);
         } else {
-          console.log(`\n  [Tool] ${event.toolName}`);
-        }
-        if (event.toolName === "bash") {
-          console.log(`    Command: ${event.args?.command || "N/A"}`);
+          console.log(`\n  ${msg.replace(/\n/g, '\n  ')}`);
         }
         break;
       }
       case "tool_execution_end": {
-        console.log(
-          `  [Tool] ${event.toolName} — ${event.isError ? "error" : "ok"}`,
-        );
+        const msg = `[Tool] ${event.toolName} — ${event.isError ? "error" : "ok"}`;
+        if (uiAPI) {
+          uiAPI.appendSystemMessage(msg);
+        } else {
+          console.log(`  ${msg}`);
+        }
         break;
       }
     }
   });
 
-  await session.prompt(prompt);
+  const promptOptions = {};
+  if (images && images.length > 0) {
+    promptOptions.images = images.map(img => ({
+      type: /** @type {"image"} */ ("image"),
+      data: img.base64,
+      mimeType: img.mimeType
+    }));
+  }
+
+  await session.prompt(prompt, promptOptions);
   await session.agent.waitForIdle();
 
   return session.agent.state.messages;

@@ -25,11 +25,6 @@ import { printGlobalHelp } from "./shared/help-text.js";
 async function main() {
   const args = Deno.args;
 
-  if (args.length === 0) {
-    printGlobalHelp();
-    Deno.exit(1);
-  }
-
   const parsed = parseArgs(args, {
     boolean: ["help"],
     alias: { h: "help" },
