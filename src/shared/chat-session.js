@@ -10,13 +10,22 @@ import {
   Key,
   Markdown,
   matchesKey,
+  SelectList,
   Spacer,
   Text,
 } from "@mariozechner/pi-tui";
 import { initTUI, stopTUI } from "./tui.js";
-import { editorTheme, imageTheme, markdownTheme, theme } from "./theme.js";
+import {
+  editorTheme,
+  imageTheme,
+  markdownTheme,
+  selectListTheme,
+  theme,
+} from "./theme.js";
 import { readClipboardImage } from "./clipboard.js";
 import { listPlans } from "../plan-store.js";
+
+const UI_PADDING = { x: 0, y: 0 };
 
 let activeAgentName = "Router";
 /** @type {((prompt: string, images: any[], uiAPI: import('./workflow.js').UiAPI) => Promise<void>) | null} */
@@ -49,8 +58,8 @@ export async function startInteractiveSession(initialPrompt, onMessage) {
   container.addChild(
     new Text(
       theme.fg("accent", theme.bold("Harns ─ Plan-by-Default Harness")),
-      1,
-      0,
+      UI_PADDING.x,
+      UI_PADDING.y,
     ),
   );
   container.addChild(new Spacer(1));
@@ -215,18 +224,30 @@ export async function startInteractiveSession(initialPrompt, onMessage) {
   const uiAPI = {
     /** @param {string} text */
     appendUserMessage: (text) => {
-      messageList.addChild(new Text(theme.fg("accent", theme.bold("You:"))));
-      messageList.addChild(new Markdown(text, 0, 0, markdownTheme));
+      messageList.addChild(
+        new Text(
+          theme.fg("accent", theme.bold("You:")),
+          UI_PADDING.x,
+          UI_PADDING.y,
+        ),
+      );
+      messageList.addChild(
+        new Markdown(text, UI_PADDING.x, UI_PADDING.y, markdownTheme),
+      );
       messageList.addChild(new Spacer(1));
       tui.requestRender();
     },
     /** @param {string} agentName */
     appendAgentMessageStart: (agentName) => {
       messageList.addChild(
-        new Text(theme.fg("success", theme.bold(`${agentName}:`))),
+        new Text(
+          theme.fg("success", theme.bold(`${agentName}:`)),
+          UI_PADDING.x,
+          UI_PADDING.y,
+        ),
       );
       let currentText = "";
-      const md = new Markdown("", 0, 0, markdownTheme);
+      const md = new Markdown("", UI_PADDING.x, UI_PADDING.y, markdownTheme);
       messageList.addChild(md);
       messageList.addChild(new Spacer(1));
       tui.requestRender();
@@ -246,9 +267,70 @@ export async function startInteractiveSession(initialPrompt, onMessage) {
     },
     /** @param {string} text */
     appendSystemMessage: (text) => {
-      messageList.addChild(new Text(theme.fg("dim", text)));
-      messageList.addChild(new Spacer(1));
+      messageList.addChild(
+        new Text(theme.fg("dim", text), UI_PADDING.x, UI_PADDING.y),
+      );
       tui.requestRender();
+    },
+    /**
+     * @param {string} title
+     * @param {Array<{value: string, label: string}>} options
+     */
+    promptSelect: (title, options) => {
+      return new Promise((resolve) => {
+        const container = new Container();
+        container.addChild(
+          new Text("─".repeat(40), UI_PADDING.x, UI_PADDING.y),
+        );
+        container.addChild(
+          new Text(
+            theme.fg("accent", theme.bold(title)),
+            UI_PADDING.x,
+            UI_PADDING.y,
+          ),
+        );
+        container.addChild(
+          new Text("─".repeat(40), UI_PADDING.x, UI_PADDING.y),
+        );
+
+        const selectList = new SelectList(
+          options,
+          Math.min(options.length, 10),
+          selectListTheme,
+        );
+
+        const cleanup = () => {
+          messageList.removeChild(container);
+          tui.setFocus(editor);
+          tui.requestRender();
+        };
+
+        selectList.onSelect = (item) => {
+          cleanup();
+          resolve(item.value);
+        };
+
+        selectList.onCancel = () => {
+          cleanup();
+          resolve(null);
+        };
+
+        container.addChild(selectList);
+        container.addChild(
+          new Text("─".repeat(40), UI_PADDING.x, UI_PADDING.y),
+        );
+        container.addChild(
+          new Text(
+            theme.fg("dim", "↑↓ navigate • enter select • esc cancel"),
+            UI_PADDING.x,
+            UI_PADDING.y,
+          ),
+        );
+
+        messageList.addChild(container);
+        tui.setFocus(selectList);
+        tui.requestRender();
+      });
     },
     /**
      * @param {string} base64

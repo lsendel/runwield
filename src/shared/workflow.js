@@ -16,6 +16,7 @@ import { extractPlanWritten } from "./triage.js";
  * @property {(text: string) => void} appendSystemMessage
  * @property {(agentName: string) => {appendText: (delta: string) => void}} appendAgentMessageStart
  * @property {() => void} requestRender
+ * @property {(title: string, options: Array<{value: string, label: string}>) => Promise<string | null>} promptSelect
  */
 
 /**
@@ -153,13 +154,18 @@ export async function reviewLoop({
  * Ask user what to do after plan approval.
  *
  * @param {string} planName
+ * @param {UiAPI} [uiAPI]
  * @returns {Promise<"proceed" | "save">}
  */
-export async function askPostApproval(planName) {
-  const choice = await select(`Plan "${planName}" approved! What next?`, [
+export async function askPostApproval(planName, uiAPI) {
+  const title = `Plan "${planName}" approved! What next?`;
+  const options = [
     { value: "proceed", label: "Proceed with execution" },
     { value: "save", label: "Save for later" },
-  ]);
+  ];
+  const choice = uiAPI && uiAPI.promptSelect
+    ? await uiAPI.promptSelect(title, options)
+    : await select(title, options);
   return choice === "proceed" ? "proceed" : "save";
 }
 
@@ -284,9 +290,10 @@ export async function executePlan(planName, triageMeta, uiAPI) {
  * Project-specific post-approval prompt that also prints task list.
  *
  * @param {string} planName
+ * @param {UiAPI} [uiAPI]
  * @returns {Promise<"proceed" | "save">}
  */
-export async function askApprovalWithTasks(planName) {
+export async function askApprovalWithTasks(planName, uiAPI) {
   const plan = await loadPlan(CWD, planName);
   const tasks = plan ? extractTasks(plan.markdown) : [];
 
@@ -298,13 +305,17 @@ export async function askApprovalWithTasks(planName) {
       );
   }
 
-  const choice = await select(`${title}\nWhat next?`, [
+  const options = [
     {
       value: "proceed",
       label: "Proceed with execution (tasks run in dependency order)",
     },
     { value: "save", label: "Save for later" },
-  ]);
+  ];
+
+  const choice = uiAPI && uiAPI.promptSelect
+    ? await uiAPI.promptSelect(`${title}\nWhat next?`, options)
+    : await select(`${title}\nWhat next?`, options);
   return choice === "proceed" ? "proceed" : "save";
 }
 

@@ -116,7 +116,7 @@ export async function submitPlanForReview({
     else console.log(msg);
   };
 
-  log(`\n[Harns] Opening plan review UI for: ${planName}`);
+  log(`[Harns] Opening plan review UI for: ${planName}`);
   log(`[Harns] Plan file: ${planPath}`);
 
   // 4. Start review server IN-PROCESS
@@ -144,10 +144,10 @@ export async function submitPlanForReview({
     // 6. Update status
     if (decision.approved) {
       await updatePlanStatus(cwd, planName, "approved");
-      log(`\n[Harns] ✅ Plan approved: ${planName}`);
+      log(`[Harns] ✅ Plan approved: ${planName}`);
     } else {
       await updatePlanStatus(cwd, planName, "denied");
-      log(`\n[Harns] ❌ Plan denied: ${planName}`);
+      log(`[Harns] ❌ Plan denied: ${planName}`);
     }
 
     return {

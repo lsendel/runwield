@@ -5,8 +5,6 @@ summary: "Testing the resume command"
 affectedPaths:
   []
 createdAt: "2026-04-26T04:26:00.000Z"
-updatedAt: "2026-04-26T04:48:15.397Z"
-status: "approved"
 origin: "internal"
 ---
 

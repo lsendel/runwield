@@ -117,24 +117,26 @@ export async function runResumeCommand(argv, options = {}) {
     : "planner";
 
   if (plan.attrs.status === "approved") {
-    uiAPI.appendSystemMessage("\n[Harns] This plan has already been approved.");
+    uiAPI.appendSystemMessage("[Harns] This plan has already been approved.");
 
-    // Set a temporary handler to capture the next user input
-    setActiveAgent("Router", async (prompt) => {
-      const answer = prompt.trim();
+    while (true) {
+      const answer = await uiAPI.promptSelect("What would you like to do?", [
+        { value: "proceed", label: "Proceed with execution" },
+        { value: "review", label: "Re-open for review (edit/annotate)" },
+        { value: "view", label: "View plan details" },
+      ]);
 
-      if (
-        answer === "1" || answer.toLowerCase() === "proceed" ||
-        answer.toLowerCase() === "p"
-      ) {
+      if (!answer) {
+        uiAPI.appendSystemMessage("[Harns] Resume canceled.");
+        return;
+      }
+
+      if (answer === "proceed") {
         await executePlan(plan.planName, plan.attrs, uiAPI);
         return;
       }
 
-      if (
-        answer === "2" || answer.toLowerCase() === "review" ||
-        answer.toLowerCase() === "r"
-      ) {
+      if (answer === "review") {
         const result = await submitPlanForReview({
           cwd: CWD,
           planName: plan.planName,
@@ -144,44 +146,27 @@ export async function runResumeCommand(argv, options = {}) {
         });
 
         if (result.approved) {
-          // Temporarily set agent back to handle the "Proceed or Save" flow
-          // (Actually `askPostApproval` in workflow.js currently uses CLI select! We need to fix that later if it's meant to be TUI-native, but for now we'll stick to logic flow)
-          // Wait, askPostApproval uses CLI select which breaks TUI!
-          // If we are in TUI, we shouldn't use CLI prompts. But for now we just log.
-          const action = await askPostApproval(plan.planName); // Will break if using CLI select inside TUI. Let's assume it's OK for now or we will fix it next.
+          const action = await askPostApproval(plan.planName, uiAPI);
           if (action === "proceed") {
             await executePlan(plan.planName, plan.attrs, uiAPI);
           } else {
             uiAPI.appendSystemMessage(
-              `\n[Harns] Plan saved. Resume later with: ${CLI_BIN} resume ${plan.planName}`,
+              `[Harns] Plan saved. Resume later with: ${CLI_BIN} resume ${plan.planName}`,
             );
           }
         } else {
           uiAPI.appendSystemMessage(
-            "\n[Harns] Plan denied. To continue the revision loop, run:",
+            "[Harns] Plan denied. To continue the revision loop, run:",
           );
           uiAPI.appendSystemMessage(`  ${CLI_BIN} resume ${plan.planName}`);
         }
         return;
       }
 
-      if (answer === "3" || answer.toLowerCase() === "view") {
-        uiAPI.appendSystemMessage(`\n${plan.body}`);
-        uiAPI.appendSystemMessage(
-          "\n[Harns] What would you like to do? 1) Proceed 2) Review",
-        );
-        return; // stay in the same prompt handler
+      if (answer === "view") {
+        uiAPI.appendSystemMessage(`\n${plan.body}\n`);
       }
-
-      uiAPI.appendSystemMessage(
-        "Invalid option. What would you like to do? 1) Proceed 2) Review 3) View plan",
-      );
-    });
-
-    uiAPI.appendSystemMessage(
-      "What would you like to do?\n  1) Proceed with execution\n  2) Re-open for review (edit/annotate)\n  3) View plan details",
-    );
-    return;
+    }
   }
 
   // Not approved - enter review loop
