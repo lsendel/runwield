@@ -207,8 +207,11 @@ export async function executePlan(planName, triageMeta, uiAPI) {
     const plan = await loadPlan(CWD, planName);
     if (!plan) {
         const err = `[Harns] ERROR: Could not load plan ${planName}`;
-        if (uiAPI) uiAPI.appendSystemMessage(err);
-        else console.error(err);
+        if (uiAPI) {
+            uiAPI.appendSystemMessage(err);
+            return;
+        }
+        console.error(err);
         Deno.exit(1);
     }
 

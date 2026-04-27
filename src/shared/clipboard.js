@@ -67,7 +67,7 @@ export async function readClipboardImage() {
         const base64Res = await base64Cmd.output();
         if (base64Res.success) {
             const base64Data = new TextDecoder().decode(base64Res.stdout).replace(
-                /\\s+/g,
+                /\s+/g,
                 "",
             );
             return {
