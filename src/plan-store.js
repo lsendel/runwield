@@ -49,7 +49,7 @@ export async function ensurePlansDir(cwd) {
  * @property {string} createdAt - ISO timestamp
  * @property {string} [updatedAt] - ISO timestamp (set on revision)
  * @property {string} status - draft | in_review | approved | denied
- * @property {string} [origin] - Where the plan came from (internal, external)
+ * @property {string} [origin] - "internal" = created by a Harns agent; "external" = a pre-existing markdown file loaded from an arbitrary path and resumed with Harns
  */
 
 /**
@@ -209,7 +209,8 @@ export async function loadPlan(cwd, planName) {
 }
 
 /**
- * Load an external plan from any path. Applies defaults if front matter is missing.
+ * Load an external plan (a pre-existing markdown file not created by Harns)
+ * from any path. Applies defaults if front matter is missing.
  *
  * @param {string} absolutePath - Absolute path to the plan file
  * @returns {Promise<{ path: string, markdown: string, attrs: PlanFrontMatter, body: string }>}

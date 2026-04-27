@@ -64,7 +64,6 @@ All agent prompts live in [`.pi/agents/`](.pi/agents/).
 | Engineer   | Implements approved plans or assigned tasks in code.                 | [engineer.md](.pi/agents/engineer.md)     |
 | Tester     | Writes/updates tests for approved changes.                           | [tester.md](.pi/agents/tester.md)         |
 | Doc Writer | Creates or updates technical documentation artifacts.                | [doc-writer.md](.pi/agents/doc-writer.md) |
-| Explorer   | Performs focused vertical-slice investigation when used.             | [explorer.md](.pi/agents/explorer.md)     |
 
 ---
 

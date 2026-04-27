@@ -33,7 +33,8 @@
 | **Plannotator**  | The browser-based review UI where users approve, deny, or annotate a plan.                                   | Review UI, approval screen       |
 | **Feedback**     | Structured annotations returned by the user when denying a plan in Plannotator.                              | Comments, annotations, notes     |
 | **Revision**     | A single pass of plan modification by an agent in response to denial feedback (max 5 per review loop).       | Iteration, update, amendment     |
-| **Resume**       | Re-entering the workflow for a previously saved or denied plan.                                               | Continue, reopen, pick up        |
+| **Resume**        | Re-entering the workflow for a previously saved or denied plan.                                              | Continue, reopen, pick up        |
+| **Origin**        | A plan front-matter field: `"internal"` (created by a Harns agent) or `"external"` (pre-existing markdown brought in from outside). | Source, provenance |
 
 ## Agents
 
@@ -45,7 +46,7 @@
 | **Planner**    | The planning agent for `FEATURE` requests — iteratively drafts a single-feature plan.                  | Designer, strategist              |
 | **Architect**  | The planning agent for `PROJECT` requests — performs deep exploration and produces multi-task plans.    | Designer, lead                    |
 | **Engineer**   | The code execution agent that implements approved plans or individual tasks.                            | Coder, implementer, developer     |
-| **Explorer**   | A read-only investigation agent that traces deep vertical slices to inform the Architect.              | Scout, investigator, mapper       |
+
 | **Tester**     | The agent responsible for writing and updating test suites based on approved plans.                     | QA, test writer                   |
 | **Doc Writer** | The agent responsible for creating and updating technical documentation artifacts.                      | Documenter, tech writer           |
 | **Agent Def**  | A markdown file in `.pi/agents/` with front matter (name, model) and a system prompt body.             | Agent prompt, agent config        |
@@ -78,7 +79,7 @@
 - A **Triage Report** contains one **Classification** (`QUICK_FIX`, `FEATURE`, or `PROJECT`) and one **Complexity** rating.
 - A **QUICK_FIX** is executed directly by the **Operator** — no **Plan** is created.
 - A **FEATURE** is handled by the **Planner**, who produces exactly one **Plan**.
-- A **PROJECT** is handled by the **Architect**, who may use the **Explorer** and produces one **Plan** containing one or more **Tasks**.
+- A **PROJECT** is handled by the **Architect**, who performs its own deep vertical-slice exploration and produces one **Plan** containing one or more **Tasks**.
 - A **Plan** goes through a **Review Loop** via **Plannotator**; each denial triggers a **Revision** (up to 5).
 - An approved **Plan** is executed by the **Engineer** (for `FEATURE`) or dispatched as **Tasks** to multiple **Agents** (for `PROJECT`).
 - Each **Task** has one **Assignee** (`engineer`, `tester`, or `doc-writer`) and may depend on other **Tasks**.
@@ -112,6 +113,6 @@
 
 - ~~**"Prompt" dual meaning**~~ **RESOLVED.** User-facing requests are now consistently named `userRequest` in function signatures, local variables, and JSDoc (`opts.userRequest`). Agent instruction text is explicitly called **System Prompt** (`systemPrompt`, `CORE_SYSTEM_PROMPT`). The word "prompt" is reserved for the pi library's `session.prompt()` API call and TUI selection overlays.
 
-- **"Plan" vs. "Exploration Report"** — the Explorer saves its output to `plans/exploration-slice.md` (or `exploration-report.md` per the init prompt), which is not a reviewable plan. It shares the `plans/` directory and `.md` format but is not a **Plan** with front matter and review lifecycle. Recommendation: either move exploration outputs to a separate directory or rename them to avoid confusion with reviewable **Plans**.
+- ~~**"Plan" vs. "Exploration Report"**~~ **RESOLVED.** The Explorer agent was a vestigial artifact from a previous iteration. Both the **Planner** and **Architect** already perform their own codebase exploration after receiving the **Triage Report**. The Explorer agent def, its old init prompt (`project_init_prompt.md`), and all references have been removed. The `plans/` directory now exclusively contains reviewable **Plans**.
 
-- **"Origin" ambiguity** — in plan front matter, `origin` is `"internal"` or `"external"`, but these terms are never defined. Recommendation: **Internal Plan** is one created by a Harns agent during an invocation; **External Plan** is a pre-existing markdown file loaded from an arbitrary path via `resolvePlan`.
+- ~~**"Origin" ambiguity**~~ **RESOLVED.** In plan front matter, `origin: "internal"` means the plan was created by a Harns agent; `origin: "external"` means it is a pre-existing markdown file brought in from outside and resumed with Harns. JSDoc on `PlanFrontMatter.origin` and `loadExternalPlan` now document this explicitly.
