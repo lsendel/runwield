@@ -1,6 +1,7 @@
 /**
  * @module shared/chat-session
- * High-level interactive UI session for the TUI.
+ * High-level interactive loop for the TUI. This manages the long-running
+ * user interaction — distinct from individual agent invocations (see session.js).
  */
 
 import { Container, Editor, Image, Key, Markdown, matchesKey, SelectList, Spacer, Text } from "@mariozechner/pi-tui";
@@ -12,13 +13,13 @@ import { listPlans } from "../plan-store.js";
 const UI_PADDING = { x: 0, y: 0 };
 
 let activeAgentName = "Router";
-/** @type {((prompt: string, images: any[], uiAPI: import('./workflow.js').UiAPI) => Promise<void>) | null} */
+/** @type {((userRequest: string, images: any[], uiAPI: import('./workflow.js').UiAPI) => Promise<void>) | null} */
 let activeOnMessage = null;
 
 /**
  * Update the active agent and its message handler dynamically.
  * @param {string} agentName
- * @param {(prompt: string, images: any[], uiAPI: import('./workflow.js').UiAPI) => Promise<void>} handler
+ * @param {(userRequest: string, images: any[], uiAPI: import('./workflow.js').UiAPI) => Promise<void>} handler
  */
 export function setActiveAgent(agentName, handler) {
     activeAgentName = agentName;
@@ -26,12 +27,12 @@ export function setActiveAgent(agentName, handler) {
 }
 
 /**
- * Starts the interactive TUI session.
- * @param {string | null} initialPrompt
- * @param {((prompt: string, images: any[], uiAPI: import('./workflow.js').UiAPI) => Promise<void>) | null} onMessage - Handler for user submissions
+ * Starts the interactive TUI loop.
+ * @param {string | null} initialUserRequest
+ * @param {((userRequest: string, images: any[], uiAPI: import('./workflow.js').UiAPI) => Promise<void>) | null} onMessage - Handler for user submissions
  */
 // deno-lint-ignore require-await
-export async function startInteractiveSession(initialPrompt, onMessage) {
+export async function startInteractiveSession(initialUserRequest, onMessage) {
     activeOnMessage = onMessage;
     const tui = initTUI();
 
@@ -141,7 +142,7 @@ export async function startInteractiveSession(initialPrompt, onMessage) {
                         aliases: ["exit", "q"],
                         description: "Exit the application",
                     },
-                    { name: "resume", aliases: [], description: "Resume a session" },
+                    { name: "resume", aliases: [], description: "Resume a saved plan" },
                 ];
 
                 const items = [];
@@ -204,7 +205,7 @@ export async function startInteractiveSession(initialPrompt, onMessage) {
     };
     editor.setAutocompleteProvider(autocompleteProvider);
 
-    // Expose an API for agents to append to the message list
+    // Expose a UI API for agents to append to the message list
     const uiAPI = {
         /** @param {string} text */
         appendUserMessage: (text) => {
@@ -359,10 +360,10 @@ export async function startInteractiveSession(initialPrompt, onMessage) {
 
     // Handle Editor events
     editor.onSubmit = async (text) => {
-        const prompt = text.trim();
-        if (!prompt) return;
+        const userRequest = text.trim();
+        if (!userRequest) return;
 
-        if (prompt === "/quit" || prompt === "/exit" || prompt === "/q") {
+        if (userRequest === "/quit" || userRequest === "/exit" || userRequest === "/q") {
             editor.setText("");
             tui.requestRender();
             setTimeout(() => {
@@ -372,8 +373,8 @@ export async function startInteractiveSession(initialPrompt, onMessage) {
             return;
         }
 
-        if (prompt.startsWith("/")) {
-            const [rawCmd, ...args] = prompt.slice(1).split(" ");
+        if (userRequest.startsWith("/")) {
+            const [rawCmd, ...args] = userRequest.slice(1).split(" ");
             const cmd = rawCmd.trim();
 
             const { commandRegistry } = await import("../cmd/registry.js");
@@ -410,12 +411,12 @@ export async function startInteractiveSession(initialPrompt, onMessage) {
         pastedImages.length = 0;
         previewImages.clear();
 
-        uiAPI.appendUserMessage(prompt);
+        uiAPI.appendUserMessage(userRequest);
         images.forEach((img) => uiAPI.appendImage(img.base64, img.mimeType));
 
         try {
             if (activeOnMessage) {
-                await activeOnMessage(prompt, images, uiAPI);
+                await activeOnMessage(userRequest, images, uiAPI);
             } else {
                 uiAPI.appendSystemMessage("Error: No active agent handler.");
             }
@@ -469,10 +470,10 @@ export async function startInteractiveSession(initialPrompt, onMessage) {
         originalHandleInput(data);
     };
 
-    // Trigger initial prompt
-    if (initialPrompt) {
-        editor.setText(initialPrompt);
-        editor.onSubmit(initialPrompt);
+    // Trigger initial user request
+    if (initialUserRequest) {
+        editor.setText(initialUserRequest);
+        editor.onSubmit(initialUserRequest);
     }
 
     return uiAPI;

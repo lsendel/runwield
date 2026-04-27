@@ -10,7 +10,7 @@ import { CLI_BIN, CWD, TOOLSETS } from "../../constants.js";
 import { ensurePlansDir } from "../../plan-store.js";
 import { triageReportTool } from "../../tools/triage-report.js";
 import { planWrittenTool } from "../../tools/plan-written.js";
-import { runSession } from "../../shared/session.js";
+import { runAgentSession } from "../../shared/session.js";
 import { extractTriageReport } from "../../shared/triage.js";
 import { askApprovalWithTasks, askPostApproval, executePlan, reviewLoop } from "../../shared/workflow.js";
 
@@ -34,12 +34,12 @@ export async function runRouterCommand(argv) {
     const userRequest = argv.join(" ").trim();
 
     setActiveAgent("Router", routerCmdOnMessage);
-    // Launch the interactive TUI session with the router as the default handler
+    // Launch the interactive loop with the router as the default handler
     await startInteractiveSession(userRequest, routerCmdOnMessage);
 }
 
 /**
- * Handle router logic inside the TUI session.
+ * Handle router logic inside the interactive loop.
  *
  * @param {string} userRequest
  * @param {Array<{base64: string, mimeType: string}>} images
@@ -50,11 +50,11 @@ export async function routerCmdOnMessage(userRequest, images, uiAPI) {
 
     uiAPI.appendSystemMessage("=== Phase A: Router (Triage) ===");
 
-    const routerMessages = await runSession({
+    const routerMessages = await runAgentSession({
         agentName: "router",
         toolNames: TOOLSETS.ROUTER,
         customTools: [triageReportTool],
-        prompt: userRequest,
+        userRequest,
         images,
         uiAPI,
     });
@@ -76,7 +76,7 @@ export async function routerCmdOnMessage(userRequest, images, uiAPI) {
         uiAPI.appendSystemMessage("QUICK_FIX detected. Handing off to Operator...");
         uiAPI.appendSystemMessage("=== Phase B1: Operator (Execute) ===");
 
-        const operatorPrompt = [
+        const operatorRequest = [
             "## User Request",
             userRequest,
             "",
@@ -89,21 +89,21 @@ export async function routerCmdOnMessage(userRequest, images, uiAPI) {
             "Execute the task above. Inspect the current state, make the change or run the command, and verify the result.",
         ].join("\n");
 
-        await runSession({
+        await runAgentSession({
             agentName: "operator",
             toolNames: TOOLSETS.OPERATOR,
-            prompt: operatorPrompt,
+            userRequest: operatorRequest,
             uiAPI,
         });
 
-        uiAPI.appendSystemMessage("✅ Operator session complete.");
+        uiAPI.appendSystemMessage("✅ Operator execution complete.");
         return;
     }
 
     if (triage.classification === "FEATURE") {
         uiAPI.appendSystemMessage("FEATURE detected. Handing off to Planner...");
 
-        const plannerPrompt = [
+        const plannerRequest = [
             "## User Request",
             userRequest,
             "",
@@ -121,7 +121,7 @@ export async function routerCmdOnMessage(userRequest, images, uiAPI) {
             agentName: "planner",
             toolNames: TOOLSETS.PLANNING,
             customTools: [planWrittenTool],
-            initialPrompt: plannerPrompt,
+            initialRequest: plannerRequest,
             triageMeta: triage,
             uiAPI,
         });
@@ -147,7 +147,7 @@ export async function routerCmdOnMessage(userRequest, images, uiAPI) {
             "=== Phase D: Architect (Targeted Explore + Plan + Review) ===",
         );
 
-        const architectPrompt = [
+        const architectRequest = [
             "## User Request",
             userRequest,
             "",
@@ -167,7 +167,7 @@ export async function routerCmdOnMessage(userRequest, images, uiAPI) {
             agentName: "architect",
             toolNames: TOOLSETS.PLANNING,
             customTools: [planWrittenTool],
-            initialPrompt: architectPrompt,
+            initialRequest: architectRequest,
             triageMeta: triage,
             uiAPI,
         });

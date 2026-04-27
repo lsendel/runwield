@@ -11,17 +11,17 @@ export const CLI_BIN = "hns";
 /** Fallback source-run invocation used in contributor docs and local dev. */
 export const DEV_CLI_RUN = "deno run -A src/cli.js";
 
-/** Current project root used by all command handlers and agent sessions. */
+/** Current project root used by all command handlers and agent invocations. */
 export const CWD = Deno.cwd();
 
 /** Harns source root path (works for source runs and compiled binaries). */
 const SRC_DIR = dirname(fromFileUrl(import.meta.url));
 
-/** Directory containing bundled default agent prompt markdown files. */
-export const AGENTS_DIR = join(SRC_DIR, "..", ".pi", "agents");
+/** Directory containing bundled default agent definition markdown files. */
+export const AGENT_DEFS_DIR = join(SRC_DIR, "..", ".pi", "agents");
 
 /**
- * Core system guidance prepended to every agent-specific prompt.
+ * Core system guidance prepended to every agent-specific system prompt.
  * Keeps cross-agent behavior aligned with Harns expectations.
  */
 export const CORE_SYSTEM_PROMPT = [
@@ -48,7 +48,7 @@ export const COMMAND_NAMES = Object.freeze({
     HELP: "help",
 });
 
-/** Shared memory tools available across agent sessions. */
+/** Shared memory tools available across all agent invocations. */
 export const MEMORY_TOOLSET = Object.freeze([
     "memory_recall",
     "memory_recall_global",
@@ -58,7 +58,7 @@ export const MEMORY_TOOLSET = Object.freeze([
 ]);
 
 /**
- * Reusable tool bundles for agent sessions.
+ * Reusable tool bundles granted to agents.
  * Keeping these centralized avoids drift between commands.
  */
 export const TOOLSETS = Object.freeze({

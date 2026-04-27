@@ -48,7 +48,7 @@ export async function runResumeCommand(argv, options = {}) {
             const plans = await listPlans(Deno.cwd());
             if (plans.length === 0) {
                 options.uiAPI.appendSystemMessage(
-                    "No plans available, start one by entering a new prompt",
+                    "No plans available, start one by entering a new request",
                 );
                 options.editor.setText("");
                 options.editor.disableSubmit = false;
@@ -87,7 +87,7 @@ export async function runResumeCommand(argv, options = {}) {
         // We were invoked from the CLI directly, boot the TUI!
         uiAPI = await startInteractiveSession(
             null,
-            (_prompt, _images, currentUiAPI) => {
+            (_userRequest, _images, currentUiAPI) => {
                 currentUiAPI.appendSystemMessage("Please wait for the plan to load...");
                 return Promise.resolve();
             },
@@ -162,19 +162,15 @@ export async function runResumeCommand(argv, options = {}) {
 
     // Not approved - enter review loop
     // deno-lint-ignore require-await
-    setActiveAgent(agentName, async (_prompt, _images, currentUiAPI) => {
-        // The review loop actually drives the prompt.
-        // Wait, reviewLoop is a long-running async function that invokes the agent internally!
-        // So we don't handle messages here, the reviewLoop does it internally by running `runSession`.
-        // But `runSession` prompts the user at the end?
-        // Actually, `runSession` runs the agent until it needs user input.
-        // So if we are in TUI, `runSession` waits for `onMessage`?
+    setActiveAgent(agentName, async (_userRequest, _images, currentUiAPI) => {
+        // The review loop drives the agent invocations internally.
+        // Manual input during an active agent invocation is not yet supported.
         currentUiAPI.appendSystemMessage(
             "Warning: Manual input while agent is running is not yet handled.",
         );
     });
 
-    const revisionPrompt = [
+    const resumeRequest = [
         `## Resuming Plan: ${plan.planName}`,
         "",
         `This plan was previously saved with status: ${plan.attrs.status}.`,
@@ -193,7 +189,7 @@ export async function runResumeCommand(argv, options = {}) {
         agentName,
         toolNames: TOOLSETS.PLANNING,
         customTools: [planWrittenTool],
-        initialPrompt: revisionPrompt,
+        initialRequest: resumeRequest,
         triageMeta,
         uiAPI,
     });

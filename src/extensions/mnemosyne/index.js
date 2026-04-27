@@ -1,6 +1,6 @@
 /**
  * @module extensions/mnemosyne
- * Mnemosyne memory extension for HAR sessions.
+ * Mnemosyne memory extension for Harns agent invocations.
  */
 
 import { basename } from "@std/path";
@@ -109,7 +109,7 @@ When to use memory:
 - Delete outdated or incorrect memories by their ID (shown in [brackets] in recall/list output).
 - Use **core** for facts that should always be in context (project architecture, key conventions, user preferences).
 - Use **global** variants for cross-project preferences (coding style, tool choices).
-- At the end of a session, store any relevant memories for future sessions.`;
+- At the end of a conversation, store any relevant memories for future use.`;
     }
 
     /** @returns {Promise<void>} */

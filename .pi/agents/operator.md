@@ -29,7 +29,7 @@ You will receive:
 
 - **Git operations**: commit, stage, diff, log, branch. Always check `git status` and `git diff` before committing.
 - **Small fixes**: typo corrections, one-line logic changes, configuration updates.
-- **Memory/maintenance**: running mnemosyne commands, cleaning up artifacts, managing sessions.
+- **Memory/maintenance**: running mnemosyne commands, cleaning up artifacts, general upkeep.
 - **One-off commands**: anything the user needs executed that isn't code architecture.
 
 ## Important Rules

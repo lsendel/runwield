@@ -1,6 +1,6 @@
 /**
  * @module shared/prompts
- * Interactive prompt overlays for the TUI.
+ * Interactive user-facing selection overlays for the TUI (select, confirm).
  */
 
 import { Container, SelectList, Text } from "@mariozechner/pi-tui";

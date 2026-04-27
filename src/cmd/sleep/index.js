@@ -1,14 +1,14 @@
 /**
  * @module cmd/sleep
- * Sleep command: run memory optimization/cleanup session.
+ * Sleep command: run memory optimization/cleanup agent invocation.
  */
 
 import { parseArgs } from "@std/cli/parse-args";
 import { COMMAND_NAMES, TOOLSETS } from "../../constants.js";
-import { runSession } from "../../shared/session.js";
+import { runAgentSession } from "../../shared/session.js";
 import { printCommandHelp } from "../../shared/help-text.js";
 
-const SLEEP_PROMPT = `You are running Harns sleep mode to optimize long-term memory quality.
+const SLEEP_REQUEST = `You are running Harns sleep mode to optimize long-term memory quality.
 
 Goal:
 - Improve memory signal quality for future sessions.
@@ -73,13 +73,13 @@ export async function runSleepCommand(argv) {
         Deno.exit(1);
     }
 
-    console.log("[Harns] Running sleep mode (memory optimize session)...\n");
+    console.log("[Harns] Running sleep mode (memory optimization)...\n");
 
-    await runSession({
+    await runAgentSession({
         agentName: "operator",
         toolNames: TOOLSETS.OPERATOR,
-        prompt: SLEEP_PROMPT,
+        userRequest: SLEEP_REQUEST,
     });
 
-    console.log("\n[Harns] ✅ Sleep session complete.");
+    console.log("\n[Harns] ✅ Sleep complete.");
 }

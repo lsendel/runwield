@@ -1,15 +1,15 @@
 /**
  * @module shared/session
- * Shared helpers for loading agents and running streamed sessions.
+ * Shared helpers for loading agent definitions and running agent invocations.
  */
 
 import { createAgentSession, DefaultResourceLoader, SessionManager } from "@mariozechner/pi-coding-agent";
 import { extractYaml, test as hasFrontMatter } from "@std/front-matter";
 import { join } from "@std/path";
-import { AGENTS_DIR, CORE_SYSTEM_PROMPT, CWD } from "../constants.js";
+import { AGENT_DEFS_DIR, CORE_SYSTEM_PROMPT, CWD } from "../constants.js";
 import mnemosyneExtension from "../extensions/mnemosyne/index.js";
 
-const PROJECT_AGENTS_DIR = join(CWD, ".pi", "agents");
+const PROJECT_AGENT_DEFS_DIR = join(CWD, ".pi", "agents");
 
 /**
  * @param {string} path
@@ -25,18 +25,18 @@ async function directoryExists(path) {
 }
 
 /**
- * Resolve prompt directory with bundled-first strategy.
- * 1) Bundled agents shipped with Harns binary
+ * Resolve agent definition directory with bundled-first strategy.
+ * 1) Bundled agent defs shipped with Harns binary
  * 2) Project-local .pi/agents fallback
  *
  * @returns {Promise<string>}
  */
-async function resolveAgentDir() {
-    if (await directoryExists(AGENTS_DIR)) return AGENTS_DIR;
-    if (await directoryExists(PROJECT_AGENTS_DIR)) return PROJECT_AGENTS_DIR;
+async function resolveAgentDefsDir() {
+    if (await directoryExists(AGENT_DEFS_DIR)) return AGENT_DEFS_DIR;
+    if (await directoryExists(PROJECT_AGENT_DEFS_DIR)) return PROJECT_AGENT_DEFS_DIR;
 
     throw new Error(
-        `Could not find bundled agent prompts at ${AGENTS_DIR} or project prompts at ${PROJECT_AGENTS_DIR}`,
+        `Could not find bundled agent defs at ${AGENT_DEFS_DIR} or project agent defs at ${PROJECT_AGENT_DEFS_DIR}`,
     );
 }
 
@@ -44,23 +44,23 @@ async function resolveAgentDir() {
  * @typedef {Object} AgentDef
  * @property {string} name - Agent name (from frontmatter or filename)
  * @property {string} model - Model identifier
- * @property {string} systemPrompt - Core prompt + agent-specific prompt
+ * @property {string} systemPrompt - Core system prompt + agent-specific system prompt
  */
 
 /**
  * Load an agent definition from `.pi/agents/<name>.md`.
  *
  * @param {string} agentName
- * @param {string} [agentDir]
+ * @param {string} [agentDefsDir]
  * @returns {Promise<AgentDef>}
  */
-export async function loadAgent(agentName, agentDir) {
-    const resolvedAgentDir = agentDir || await resolveAgentDir();
-    const filePath = join(resolvedAgentDir, `${agentName}.md`);
+export async function loadAgentDef(agentName, agentDefsDir) {
+    const resolvedDir = agentDefsDir || await resolveAgentDefsDir();
+    const filePath = join(resolvedDir, `${agentName}.md`);
     const raw = await Deno.readTextFile(filePath);
 
     if (!hasFrontMatter(raw)) {
-        throw new Error(`Agent file ${filePath} has no frontmatter`);
+        throw new Error(`Agent def ${filePath} has no frontmatter`);
     }
 
     const { attrs, body } = extractYaml(raw);
@@ -72,22 +72,22 @@ export async function loadAgent(agentName, agentDir) {
 }
 
 /**
- * Run an agent session and wait for idle.
+ * Run a single agent invocation and wait for idle.
  *
  * @param {Object} opts
  * @param {string} opts.agentName
  * @param {string[]} opts.toolNames
  * @param {import('@mariozechner/pi-coding-agent').ToolDefinition[]} [opts.customTools]
- * @param {string} opts.prompt
+ * @param {string} opts.userRequest - The user-facing request/instruction to send to the agent
  * @param {Array<{base64: string, mimeType: string}>} [opts.images]
  * @param {import('./workflow.js').UiAPI} [opts.uiAPI]
  * @returns {Promise<import('@mariozechner/pi-agent-core').AgentMessage[]>}
  */
-export async function runSession(
-    { agentName, toolNames, customTools, prompt, images, uiAPI },
+export async function runAgentSession(
+    { agentName, toolNames, customTools, userRequest, images, uiAPI },
 ) {
-    const agentDir = await resolveAgentDir();
-    const agentDef = await loadAgent(agentName, agentDir);
+    const agentDefsDir = await resolveAgentDefsDir();
+    const agentDef = await loadAgentDef(agentName, agentDefsDir);
 
     if (uiAPI) {
         uiAPI.appendSystemMessage(
@@ -101,7 +101,7 @@ export async function runSession(
 
     const loader = new DefaultResourceLoader({
         cwd: CWD,
-        agentDir,
+        agentDir: agentDefsDir,
         systemPromptOverride: () => agentDef.systemPrompt,
         extensionFactories: [mnemosyneExtension],
     });
@@ -129,7 +129,7 @@ export async function runSession(
         }
     }
 
-    // Ensure extension lifecycle hooks (e.g. session_start) are activated.
+    // Ensure extension lifecycle hooks (e.g. session_start) are activated for this agent invocation.
     await session.bindExtensions({});
 
     /** @type {any} */
@@ -182,16 +182,16 @@ export async function runSession(
         }
     });
 
-    const promptOptions = {};
+    const requestOptions = {};
     if (images && images.length > 0) {
-        promptOptions.images = images.map((img) => ({
+        requestOptions.images = images.map((img) => ({
             type: /** @type {"image"} */ ("image"),
             data: img.base64,
             mimeType: img.mimeType,
         }));
     }
 
-    await session.prompt(prompt, promptOptions);
+    await session.prompt(userRequest, requestOptions);
     await session.agent.waitForIdle();
 
     return session.agent.state.messages;

@@ -1,6 +1,6 @@
 /**
  * @module plan-written
- * Custom tool for planning agents to declare the plan filename they created.
+ * Custom tool for planning agents (Planner/Architect) to declare the plan filename they created.
  */
 
 import { Type } from "@mariozechner/pi-ai";

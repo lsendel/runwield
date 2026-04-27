@@ -57,7 +57,7 @@ async function main() {
         return;
     }
 
-    // Default command route: `cli.js "<prompt>"` => router
+    // Default command route: `cli.js "<user request>"` => router
     await commandRegistry[COMMAND_NAMES.ROUTER](args);
 }
 

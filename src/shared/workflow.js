@@ -7,7 +7,7 @@ import { join } from "@std/path";
 import { CWD, PLANS_DIR_NAME, TOOLSETS } from "../constants.js";
 import { submitPlanForReview } from "../tools/submit-plan.js";
 import { loadPlan } from "../plan-store.js";
-import { runSession } from "./session.js";
+import { runAgentSession } from "./session.js";
 import { select } from "./prompts.js";
 import { extractPlanWritten } from "./triage.js";
 
@@ -49,7 +49,7 @@ async function resolveDeclaredPlan(messages) {
  * @param {Object} opts
  * @param {string} opts.agentName
  * @param {string[]} opts.toolNames
- * @param {string} opts.initialPrompt
+ * @param {string} opts.initialRequest - The initial user request to send to the planning agent
  * @param {import('@mariozechner/pi-coding-agent').ToolDefinition[]} [opts.customTools]
  * @param {Partial<import('../plan-store.js').PlanFrontMatter>} opts.triageMeta
  * @param {number} [opts.maxRevisions=5]
@@ -59,13 +59,13 @@ async function resolveDeclaredPlan(messages) {
 export async function reviewLoop({
     agentName,
     toolNames,
-    initialPrompt,
+    initialRequest,
     customTools,
     triageMeta,
     maxRevisions = 5,
     uiAPI,
 }) {
-    let currentPrompt = initialPrompt;
+    let currentRequest = initialRequest;
     let revision = 0;
 
     while (revision < maxRevisions) {
@@ -79,11 +79,11 @@ export async function reviewLoop({
             else console.log(`\n${msg}\n`);
         }
 
-        const planningMessages = await runSession({
+        const planningMessages = await runAgentSession({
             agentName,
             toolNames,
             customTools,
-            prompt: currentPrompt,
+            userRequest: currentRequest,
             uiAPI,
         });
 
@@ -126,7 +126,7 @@ export async function reviewLoop({
                 `\n[Harns] Plan denied. Feeding feedback back to ${agentName}...`,
             );}
 
-        currentPrompt = [
+        currentRequest = [
             `## Previous Plan Feedback (Round ${revision})`,
             "",
             "Your plan was denied. Here is the structured feedback from the user:",
@@ -244,7 +244,7 @@ export async function executePlan(planName, triageMeta, uiAPI) {
                 if (uiAPI) uiAPI.appendSystemMessage(header);
                 else console.log(`\n${header}\n`);
 
-                const taskPrompt = [
+                const taskRequest = [
                     "## Task Assignment",
                     "",
                     `You are assigned Task ${task.task} from the plan "${planName}".`,
@@ -261,10 +261,10 @@ export async function executePlan(planName, triageMeta, uiAPI) {
 
                 const taskTools = agentName === "doc-writer" ? TOOLSETS.DOC_WRITER : TOOLSETS.ENGINEER;
 
-                await runSession({
+                await runAgentSession({
                     agentName,
                     toolNames: taskTools,
-                    prompt: taskPrompt,
+                    userRequest: taskRequest,
                     uiAPI,
                 });
             }
@@ -283,7 +283,7 @@ export async function executePlan(planName, triageMeta, uiAPI) {
 }
 
 /**
- * Project-specific post-approval prompt that also prints task list.
+ * Project-specific post-approval selection that also prints task list.
  *
  * @param {string} planName
  * @param {UiAPI} [uiAPI]
@@ -326,7 +326,7 @@ async function runEngineerWithPlan(planName, planBody, uiAPI) {
     if (uiAPI) uiAPI.appendSystemMessage("[Harns] === Running Engineer ===");
     else console.log("[Harns] === Running Engineer ===\n");
 
-    const engineerPrompt = [
+    const engineerRequest = [
         `## Approved Plan: ${planName}`,
         "",
         "Execute the following plan step by step. Implement each step, verify the result, then move on.",
@@ -334,10 +334,10 @@ async function runEngineerWithPlan(planName, planBody, uiAPI) {
         planBody,
     ].join("\n");
 
-    await runSession({
+    await runAgentSession({
         agentName: "engineer",
         toolNames: TOOLSETS.ENGINEER,
-        prompt: engineerPrompt,
+        userRequest: engineerRequest,
         uiAPI,
     });
 }

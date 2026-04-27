@@ -9,7 +9,7 @@ const COMMAND_SUMMARIES = {
     [COMMAND_NAMES.ROUTER]: "Route a request through triage and execution/planning flow (default command).",
     [COMMAND_NAMES.RESUME]: "Resume work from a saved plan by name or file path.",
     [COMMAND_NAMES.PLANS]: "List saved plans.",
-    [COMMAND_NAMES.SLEEP]: "Run memory optimization/cleanup session using Mnemosyne.",
+    [COMMAND_NAMES.SLEEP]: "Run memory optimization/cleanup using Mnemosyne.",
     [COMMAND_NAMES.HELP]: "Show global help or help for a specific command.",
 };
 
@@ -55,7 +55,7 @@ const COMMAND_DETAILS = {
         ],
         notes: [
             "Requires mnemosyne binary in PATH.",
-            "Uses built-in Harns sleep prompt (no external prompt file required).",
+            "Uses built-in Harns sleep request (no external file required).",
         ],
     },
     [COMMAND_NAMES.HELP]: {

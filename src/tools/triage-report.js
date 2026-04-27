@@ -1,6 +1,6 @@
 /**
  * @module triage-report
- * Custom tool for the Router agent to output a structured triage report.
+ * Custom tool for the Router to output a structured triage report.
  * Instead of hoping for parseable JSON in freeform text, this tool
  * forces the LLM to output a structured classification result.
  */
