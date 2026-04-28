@@ -123,7 +123,22 @@ export async function runResumeCommand(argv, options = {}) {
             }
 
             if (answer === "proceed") {
-                await executePlan(plan.planName, plan.attrs, uiAPI);
+                const execRes = await executePlan(plan.planName, plan.attrs, uiAPI);
+                if (execRes && execRes.repairRequired) {
+                    const agentName = triageMeta.classification === "PROJECT" ? "architect" : "planner";
+                    uiAPI.appendSystemMessage(
+                        `[Harns] Execution failed due to task table error. Rerouting to ${agentName} for repair...`,
+                    );
+                    await reviewLoop({
+                        agentName,
+                        toolNames: TOOLSETS.PLANNING,
+                        customTools: [planWrittenTool],
+                        initialRequest:
+                            `The previously approved plan "${plan.planName}" had a malformed Tasks table: ${execRes.error}.\n\nPlease fix the table to ensure it follows the required format (Task ID | Assignee | Dependencies | Description) and call plan_written again.`,
+                        triageMeta: plan.attrs,
+                        uiAPI,
+                    });
+                }
                 return;
             }
 
@@ -198,6 +213,21 @@ export async function runResumeCommand(argv, options = {}) {
         // Temporarily bypass CLI prompts inside TUI if possible
         uiAPI.appendSystemMessage(`[Harns] Plan "${result.planName}" approved!`);
         uiAPI.appendSystemMessage(`[Harns] Proceeding with execution...`);
-        await executePlan(result.planName, triageMeta, uiAPI);
+        const execRes = await executePlan(result.planName, triageMeta, uiAPI);
+        if (execRes && execRes.repairRequired) {
+            const agentName = triageMeta.classification === "PROJECT" ? "architect" : "planner";
+            uiAPI.appendSystemMessage(
+                `[Harns] Execution failed due to task table error. Rerouting to ${agentName} for repair...`,
+            );
+            await reviewLoop({
+                agentName,
+                toolNames: TOOLSETS.PLANNING,
+                customTools: [planWrittenTool],
+                initialRequest:
+                    `The previously approved plan "${result.planName}" had a malformed Tasks table: ${execRes.error}.\n\nPlease fix the table to ensure it follows the required format (Task ID | Assignee | Dependencies | Description) and call plan_written again.`,
+                triageMeta,
+                uiAPI,
+            });
+        }
     }
 }

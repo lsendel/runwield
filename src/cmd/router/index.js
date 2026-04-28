@@ -175,7 +175,23 @@ export async function routerCmdOnMessage(userRequest, images, uiAPI) {
         if (result) {
             const action = await askApprovalWithTasks(result.planName, uiAPI);
             if (action === "proceed") {
-                await executePlan(result.planName, triage, uiAPI);
+                const execRes = await executePlan(result.planName, triage, uiAPI);
+                if (execRes && execRes.repairRequired) {
+                    uiAPI.appendSystemMessage(
+                        `[Harns] Execution failed due to task table error. Rerouting to Architect for repair...`,
+                    );
+                    // Trigger immediate repair loop
+                    await reviewLoop({
+                        agentName: "architect",
+                        toolNames: TOOLSETS.PLANNING,
+                        customTools: [planWrittenTool],
+                        initialRequest:
+                            `The previously approved plan "${result.planName}" had a malformed Tasks table: ${execRes.error}.\n\nPlease fix the table to ensure it follows the required format (Task ID | Assignee | Dependencies | Description) and call plan_written again.`,
+                        triageMeta: triage,
+                        uiAPI,
+                    });
+                    // After repair, we might want to execute again, but we'll let the user decide if it comes back to approve/proceed
+                }
             } else {
                 uiAPI.appendSystemMessage(
                     `Plan saved. Resume later with: ${CLI_BIN} resume ${result.planName}`,

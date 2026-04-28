@@ -68,3 +68,6 @@ export const TOOLSETS = Object.freeze({
     ENGINEER: ["read", "edit", "write", "bash", ...MEMORY_TOOLSET],
     DOC_WRITER: ["read", "write", "bash", ...MEMORY_TOOLSET],
 });
+
+/** Max concurrent agent tasks for PROJECT execution. */
+export const MAX_PARALLEL_TASKS = 4;

@@ -4,11 +4,11 @@
  */
 
 import { join } from "@std/path";
-import { CWD, PLANS_DIR_NAME, TOOLSETS } from "../constants.js";
+import { CWD, MAX_PARALLEL_TASKS, PLANS_DIR_NAME, TOOLSETS } from "../constants.js";
 import { submitPlanForReview } from "../tools/submit-plan.js";
 import { loadPlan } from "../plan-store.js";
 import { runAgentSession } from "./session.js";
-import { select } from "./prompts.js";
+import { confirm, select } from "./prompts.js";
 import { extractPlanWritten } from "./triage.js";
 
 /**
@@ -167,10 +167,11 @@ export async function askPostApproval(planName, uiAPI) {
 }
 
 /**
- * Parse PROJECT task table from plan markdown body.
+ * Parse PROJECT task table from plan markdown body with validation.
  *
  * @param {string} planContent
  * @returns {Array<{ task: number, assignee: string, dependencies: string, description: string }>}
+ * @throws {Error} If task table is malformed for a PROJECT plan.
  */
 export function extractTasks(planContent) {
     const tasks =
@@ -179,7 +180,11 @@ export function extractTasks(planContent) {
         /### Tasks\s*\n([\s\S]*?)(?=\n###|\n##|$)/,
     );
 
-    if (!taskSection) return tasks;
+    if (!taskSection) {
+        throw new Error(
+            "Tasks table not found. PROJECT plans must include a '### Tasks' section with a formatted table.",
+        );
+    }
 
     const rows = taskSection[1].matchAll(
         /\|\s*(\d+)\s*\|\s*(\w[\w-]*)\s*\|\s*([^|]*)\s*\|\s*([^|]*)\s*\|/g,
@@ -192,6 +197,10 @@ export function extractTasks(planContent) {
             dependencies: match[3].trim(),
             description: match[4].trim(),
         });
+    }
+
+    if (tasks.length === 0) {
+        throw new Error("Tasks table found but contains no valid task rows.");
     }
 
     return tasks;
@@ -221,56 +230,52 @@ export async function executePlan(planName, triageMeta, uiAPI) {
     } else console.log(`\n[Harns] === Executing Plan: ${planName} ===\n`);
 
     if (triageMeta.classification === "PROJECT") {
-        const tasks = extractTasks(plan.markdown);
+        try {
+            const tasks = extractTasks(plan.markdown);
 
-        if (tasks.length > 0) {
-            if (uiAPI) {
-                uiAPI.appendSystemMessage(
-                    `[Harns] Found ${tasks.length} tasks in plan. Executing in dependency order.`,
-                );
-            } else {console.log(
-                    `[Harns] Found ${tasks.length} tasks in plan. Executing in dependency order.\n`,
-                );}
+            if (tasks.length > 0) {
+                if (uiAPI) {
+                    uiAPI.appendSystemMessage(
+                        `[Harns] Found ${tasks.length} tasks in plan. Executing in parallel where possible.`,
+                    );
+                } else {console.log(
+                        `[Harns] Found ${tasks.length} tasks in plan. Executing in parallel where possible.\n`,
+                    );}
 
-            for (const task of tasks) {
-                const agentName = task.assignee === "engineer"
-                    ? "engineer"
-                    : task.assignee === "tester"
-                    ? "tester"
-                    : task.assignee === "doc-writer"
-                    ? "doc-writer"
-                    : "engineer";
+                const executionResult = await executeProjectTasks(planName, plan.body, tasks, uiAPI);
 
-                const header = `[Harns] --- Task ${task.task}: ${task.description} (→ ${agentName}) ---`;
-                if (uiAPI) uiAPI.appendSystemMessage(header);
-                else console.log(`\n${header}\n`);
-
-                const taskRequest = [
-                    "## Task Assignment",
-                    "",
-                    `You are assigned Task ${task.task} from the plan "${planName}".`,
-                    "",
-                    "### Task Description",
-                    task.description,
-                    "",
-                    "### Dependencies",
-                    task.dependencies || "None",
-                    "",
-                    "### Full Plan Context",
-                    plan.body,
-                ].join("\n");
-
-                const taskTools = agentName === "doc-writer" ? TOOLSETS.DOC_WRITER : TOOLSETS.ENGINEER;
-
-                await runAgentSession({
-                    agentName,
-                    toolNames: taskTools,
-                    userRequest: taskRequest,
-                    uiAPI,
-                });
+                if (executionResult.failedTasks.length > 0) {
+                    const retry = await askRetryFailedTasks(executionResult, uiAPI);
+                    if (retry) {
+                        const finalResult = await executeProjectTasks(
+                            planName,
+                            plan.body,
+                            tasks,
+                            uiAPI,
+                            executionResult.failedTasks,
+                        );
+                        if (finalResult.failedTasks.length > 0) {
+                            await reportExecutionSummary(finalResult, uiAPI);
+                        } else {
+                            uiAPI && uiAPI.appendSystemMessage(`[Harns] ✅ All tasks eventually completed.`);
+                        }
+                    } else {
+                        await reportExecutionSummary(executionResult, uiAPI);
+                    }
+                } else {
+                    uiAPI && uiAPI.appendSystemMessage(`[Harns] ✅ All tasks completed successfully.`);
+                }
+            } else {
+                await runEngineerWithPlan(planName, plan.body, uiAPI);
             }
-        } else {
-            await runEngineerWithPlan(planName, plan.body, uiAPI);
+        } catch (e) {
+            const error = e instanceof Error ? e : new Error(String(e));
+            const msg = `[Harns] TASK TABLE ERROR: ${error.message}`;
+            if (uiAPI) uiAPI.appendSystemMessage(msg);
+            else console.error(`\n${msg}`);
+
+            // Return status that triggers repair loop in the caller (Router/Resume)
+            return { repairRequired: true, error: error.message };
         }
     } else {
         await runEngineerWithPlan(planName, plan.body, uiAPI);
@@ -281,6 +286,160 @@ export async function executePlan(planName, triageMeta, uiAPI) {
             `[Harns] ✅ Plan execution complete: ${planName}`,
         );
     } else console.log(`\n[Harns] ✅ Plan execution complete: ${planName}`);
+    return { repairRequired: false };
+}
+
+/**
+ * @param {string} planName
+ * @param {string} planBody
+ * @param {Array<{ task: number, assignee: string, dependencies: string, description: string }>} tasks
+ * @param {UiAPI} [uiAPI]
+ * @param {number[]} [seedFailedTasks]
+ */
+async function executeProjectTasks(
+    planName,
+    planBody,
+    tasks,
+    uiAPI,
+    seedFailedTasks = [],
+) {
+    /** @type {Map<number, { status: "success" | "failed" | "blocked", error?: string }>} */
+    const results = new Map();
+    const pending = new Set(tasks.map((t) => t.task));
+    const running = new Set();
+    const failed = new Set();
+
+    // If we are retrying, seed the state
+    if (seedFailedTasks.length > 0) {
+        const processed = tasks.filter((t) => !seedFailedTasks.includes(t.task)).map((t) => t.task);
+        processed.forEach((id) => results.set(id, { status: "success" }));
+        seedFailedTasks.forEach((id) => pending.add(id));
+    }
+
+    while (results.size < tasks.length) {
+        // 1. Identify ready tasks (pending, dependencies satisfied, not running)
+        const ready = tasks.filter((t) => {
+            if (!pending.has(t.task)) return false;
+            const deps = t.dependencies.split(",").map((d) => d.trim()).filter(Boolean);
+            return deps.every((d) => {
+                const depId = parseInt(d);
+                if (isNaN(depId)) return true; // permissive for non-numeric deps
+                return results.has(depId) && results.get(depId)?.status === "success";
+            });
+        });
+
+        // 2. Launch up to MAX_PARALLEL_TASKS
+        const toLaunch = ready.slice(0, MAX_PARALLEL_TASKS - running.size);
+
+        if (toLaunch.length === 0 && running.size === 0 && pending.size > 0) {
+            // Deadlock or all remaining are blocked by failures
+            const remaining = Array.from(pending);
+            remaining.forEach((id) => {
+                results.set(id, { status: "blocked" });
+            });
+            break;
+        }
+
+        const launches = toLaunch.map(async (task) => {
+            running.add(task.task);
+            pending.delete(task.task);
+
+            const agentName = task.assignee === "engineer"
+                ? "engineer"
+                : task.assignee === "tester"
+                ? "tester"
+                : task.assignee === "doc-writer"
+                ? "doc-writer"
+                : "engineer";
+
+            const header = `[Harns] --- Task ${task.task}: ${task.description} (→ ${agentName}) ---`;
+            if (uiAPI) uiAPI.appendSystemMessage(header);
+            else console.log(`\n${header}\n`);
+
+            const taskRequest = [
+                "## Task Assignment",
+                `You are assigned Task ${task.task} from the plan "${planName}".`,
+                "### Task Description",
+                task.description,
+                "### Dependencies",
+                task.dependencies || "None",
+                "### Full Plan Context",
+                planBody,
+            ].filter(Boolean).join("\n\n");
+
+            const taskTools = agentName === "doc-writer" ? TOOLSETS.DOC_WRITER : TOOLSETS.ENGINEER;
+
+            try {
+                await runAgentSession({
+                    agentName,
+                    toolNames: taskTools,
+                    userRequest: taskRequest,
+                    uiAPI,
+                });
+                results.set(task.task, { status: "success" });
+            } catch (e) {
+                const error = e instanceof Error ? e : new Error(String(e));
+                results.set(task.task, { status: "failed", error: error.message });
+                failed.add(task.task);
+            } finally {
+                running.delete(task.task);
+            }
+        });
+
+        if (launches.length > 0) {
+            await Promise.race(launches); // Wait for at least one to finish to re-evaluate readiness
+        } else if (running.size > 0) {
+            await Promise.all(launches); // Fallback to wait for all running if none ready
+        } else if (pending.size === 0) {
+            break;
+        } else {
+            // This happens if we have pending tasks but none are ready and none are running
+            // (i.e. blocked by failed tasks)
+            tasks.filter((t) => pending.has(t.task)).forEach((t) => {
+                results.set(t.task, { status: "blocked" });
+            });
+            break;
+        }
+    }
+
+    const failedTasks = tasks.filter((t) => results.get(t.task)?.status === "failed").map((t) => t.task);
+    return { failedTasks, results };
+}
+
+/**
+ * @param {{ failedTasks: number[], results: Map<number, { status: string, error?: string }> }} executionResult
+ * @param {UiAPI} [uiAPI]
+ */
+async function askRetryFailedTasks(executionResult, uiAPI) {
+    const { failedTasks } = executionResult;
+    const msg = `[Harns] ${failedTasks.length} task(s) failed. Would you like to retry the failed tasks?`;
+    if (uiAPI && uiAPI.promptSelect) {
+        return await uiAPI.promptSelect(msg, [
+            { value: "yes", label: "Yes, retry failed tasks" },
+            { value: "no", label: "No, finalize execution" },
+        ]) === "yes";
+    }
+    return await confirm(msg);
+}
+
+/**
+ * @param {{ results: Map<number, { status: string, error?: string }> }} result
+ * @param {UiAPI} [uiAPI]
+ */
+function reportExecutionSummary(result, uiAPI) {
+    const { results } = result;
+    let successCount = 0, failedCount = 0, blockedCount = 0;
+
+    results.forEach((res) => {
+        if (res.status === "success") successCount++;
+        else if (res.status === "failed") failedCount++;
+        else if (res.status === "blocked") blockedCount++;
+    });
+
+    const summary =
+        `[Harns] Execution Summary: ${successCount} success, ${failedCount} failed, ${blockedCount} blocked.`;
+    if (uiAPI) uiAPI.appendSystemMessage(summary);
+    else console.log(`\n${summary}\n`);
 }
 
 /**
