@@ -26,6 +26,12 @@ export function setActiveAgent(agentName, handler) {
     activeOnMessage = handler;
 }
 
+let currentAgentModel = "";
+
+export function setActiveModel(model) {
+    currentAgentModel = model;
+}
+
 /**
  * Starts the interactive TUI loop.
  * @param {string | null} initialUserRequest
@@ -73,30 +79,40 @@ export async function startInteractiveSession(initialUserRequest, onMessage) {
     } catch (_e) {
         branch = "unknown";
     }
-    let model = "gemini-2.5-flash";
-    let provider = "unknown";
-    try {
-        const homeDir = Deno.env.get("HOME") || "";
-        /** @type {Record<string, any>} */
-        let settings = {};
-        try {
-            const globalPath = `${homeDir}/.pi/agent/settings.json`;
-            settings = JSON.parse(Deno.readTextFileSync(globalPath));
-        } catch (_e) { /* ignore */ }
-        try {
-            const localPath = `${Deno.cwd()}/.pi/settings.json`;
-            const projSettings = JSON.parse(Deno.readTextFileSync(localPath));
-            settings = { ...settings, ...projSettings };
-        } catch (_e) { /* ignore */ }
 
-        if (settings.defaultModel) model = settings.defaultModel;
-        if (settings.defaultProvider) provider = settings.defaultProvider;
-    } catch (_e) { /* ignore */ }
+    const getModelAndProvider = () => {
+        let model = "gemini-2.5-flash";
+        let provider = "unknown";
+        try {
+            const homeDir = Deno.env.get("HOME") || "";
+            /** @type {Record<string, any>} */
+            let settings = {};
+            try {
+                const globalPath = `${homeDir}/.pi/agent/settings.json`;
+                settings = JSON.parse(Deno.readTextFileSync(globalPath));
+            } catch (_e) { /* ignore */ }
+            try {
+                const localPath = `${Deno.cwd()}/.pi/settings.json`;
+                const projSettings = JSON.parse(Deno.readTextFileSync(localPath));
+                settings = { ...settings, ...projSettings };
+            } catch (_e) { /* ignore */ }
+
+            if (settings.defaultModel) model = settings.defaultModel;
+            if (settings.defaultProvider) provider = settings.defaultProvider;
+            
+            if (currentAgentModel) {
+                 model = currentAgentModel;
+            }
+        } catch (_e) { /* ignore */ }
+        
+        return { model, provider };
+    }
 
     const footer = {
         invalidate: () => {},
         /** @param {number} w */
         render: (w) => {
+            const { model, provider } = getModelAndProvider();
             const leftStr = `${cwd} (${branch})`;
             const rightStr = `(${provider}) ${model}`;
             const spaceCount = Math.max(0, w - leftStr.length - rightStr.length);
@@ -332,6 +348,15 @@ export async function startInteractiveSession(initialUserRequest, onMessage) {
         requestRender: () => {
             tui.requestRender();
         },
+        /**
+         * @param {string} agentName
+         * @param {string} agentModel
+         */
+        setAgentInfo: (agentName, agentModel) => {
+            activeAgentName = agentName;
+            currentAgentModel = agentModel;
+            tui.requestRender();
+        }
     };
 
     // @ts-ignore: TS doesn't know about pi-tui Editor internals

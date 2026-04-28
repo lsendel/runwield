@@ -88,8 +88,12 @@ export async function runAgentSession(
 ) {
     const agentDefsDir = await resolveAgentDefsDir();
     const agentDef = await loadAgentDef(agentName, agentDefsDir);
-
+    
+    // Attempt to update the agent info in the UI footer.
     if (uiAPI) {
+        if (uiAPI.setAgentInfo) {
+            uiAPI.setAgentInfo(agentDef.name, agentDef.model);
+        }
         uiAPI.appendSystemMessage(
             `[Harns] Loading agent: ${agentDef.name} (model: ${agentDef.model})`,
         );
