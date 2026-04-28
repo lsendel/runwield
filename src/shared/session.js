@@ -71,15 +71,15 @@ export async function loadAgentDef(agentName, agentDefsDir) {
     return { name, model, systemPrompt };
 }
 
-/** @type {import('@mariozechner/pi-coding-agent').AgentSession | null} */
-let activeSession = null;
+/** @type {Set<import('@mariozechner/pi-coding-agent').AgentSession>} */
+const activeSessions = new Set();
 
 /**
- * Stop the currently active agent session.
+ * Stop all currently active agent sessions.
  */
 export function abortActiveSession() {
-    if (activeSession) {
-        activeSession.abort();
+    for (const session of activeSessions) {
+        session.abort();
     }
 }
 
@@ -211,11 +211,31 @@ export async function runAgentSession(
     }
 
     try {
-        activeSession = session;
+        activeSessions.add(session);
+        
+        if (Deno.env.get("DEBUG") === "1") {
+            const logEntry = [
+                `===========================================`,
+                `=== AGENT INVOCATION: ${agentDef.name} ===`,
+                `=== TIMESTAMP: ${new Date().toISOString()} ===`,
+                `=== SYSTEM PROMPT ===`,
+                agentDef.systemPrompt,
+                `=== USER REQUEST ===`,
+                userRequest,
+                `===========================================`,
+                ""
+            ].join("\n");
+            try {
+                Deno.writeTextFileSync(join(Deno.cwd(), "debug.log"), logEntry, { append: true });
+            } catch (e) {
+                // Ignore log error
+            }
+        }
+
         await session.prompt(userRequest, requestOptions);
         await session.agent.waitForIdle();
     } finally {
-        activeSession = null;
+        activeSessions.delete(session);
     }
 
     return session.agent.state.messages;

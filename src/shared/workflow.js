@@ -16,6 +16,8 @@ import { extractPlanWritten } from "./triage.js";
  * @property {(text: string) => void} appendSystemMessage
  * @property {(agentName: string) => {appendText: (delta: string) => void}} appendAgentMessageStart
  * @property {() => void} requestRender
+ * @property {() => void} [advanceSpinner]
+ * @property {(tasks: Array<{task: number, assignee: string, description: string}>) => void} [setRunningTasks]
  * @property {(title: string, options: Array<{value: string, label: string}>) => Promise<string | null>} promptSelect
  * @property {(agentName: string, agentModel: string) => void} [setAgentInfo]
  * @property {() => void} [disableInput]
@@ -248,18 +250,45 @@ export async function executePlan(planName, triageMeta, uiAPI, structuredTasks) 
                         `[Harns] Found ${tasks.length} tasks in plan. Executing in parallel where possible.\n`,
                     );}
 
-                const executionResult = await executeProjectTasks(planName, plan.body, tasks, uiAPI);
+                let localActiveTasks = 0;
+                let spinnerInterval;
+
+                if (uiAPI && uiAPI.advanceSpinner && typeof setInterval !== "undefined") {
+                     spinnerInterval = setInterval(() => {
+                         if (localActiveTasks > 0) {
+                             if (uiAPI.advanceSpinner) uiAPI.advanceSpinner();
+                         }
+                     }, 100);
+                }
+
+                const executionResult = await executeProjectTasks(planName, plan.body, tasks, uiAPI, [], (runningTasks) => {
+                    localActiveTasks = runningTasks.length;
+                    if (uiAPI && uiAPI.setRunningTasks) uiAPI.setRunningTasks(runningTasks);
+                });
+
+                if (spinnerInterval) clearInterval(spinnerInterval);
 
                 if (executionResult.failedTasks.length > 0) {
                     const retry = await askRetryFailedTasks(executionResult, uiAPI);
                     if (retry) {
+                        localActiveTasks = 0;
+                        if (uiAPI && uiAPI.advanceSpinner && typeof setInterval !== "undefined") {
+                             spinnerInterval = setInterval(() => {
+                                 if (localActiveTasks > 0 && uiAPI.advanceSpinner) uiAPI.advanceSpinner();
+                             }, 100);
+                        }
                         const finalResult = await executeProjectTasks(
                             planName,
                             plan.body,
                             tasks,
                             uiAPI,
                             executionResult.failedTasks,
+                            (runningTasks) => { 
+                                localActiveTasks = runningTasks.length; 
+                                if (uiAPI && uiAPI.setRunningTasks) uiAPI.setRunningTasks(runningTasks);
+                            }
                         );
+                        if (spinnerInterval) clearInterval(spinnerInterval);
                         if (finalResult.failedTasks.length > 0) {
                             await reportExecutionSummary(finalResult, uiAPI);
                         } else {
@@ -301,6 +330,7 @@ export async function executePlan(planName, triageMeta, uiAPI, structuredTasks) 
  * @param {Array<{ task: number, assignee: string, dependencies: string, description: string }>} tasks
  * @param {UiAPI} [uiAPI]
  * @param {number[]} [seedFailedTasks]
+ * @param {(runningTasks: Array<{task: number, assignee: string, description: string}>) => void} [onRunningTasksChange]
  */
 async function executeProjectTasks(
     planName,
@@ -308,8 +338,9 @@ async function executeProjectTasks(
     tasks,
     uiAPI,
     seedFailedTasks = [],
+    onRunningTasksChange
 ) {
-    /** @type {Map<number, { status: "success" | "failed" | "blocked", error?: string }>} */
+    /** @type {Map<number, { status: "success" | "failed" | "blocked", error?: string, messages?: any[] }>} */
     const results = new Map();
     const pending = new Set(tasks.map((t) => t.task));
     const running = new Set();
@@ -326,7 +357,7 @@ async function executeProjectTasks(
         // 1. Identify ready tasks (pending, dependencies satisfied, not running)
         const ready = tasks.filter((t) => {
             if (!pending.has(t.task)) return false;
-            const deps = t.dependencies.split(",").map((d) => d.trim()).filter(Boolean);
+            const deps = (t.dependencies || "").split(",").map((d) => d.trim()).filter((d) => d && d.toLowerCase() !== "none");
             return deps.every((d) => {
                 const depId = parseInt(d);
                 if (isNaN(depId)) return true; // permissive for non-numeric deps
@@ -348,6 +379,9 @@ async function executeProjectTasks(
 
         const launches = toLaunch.map(async (task) => {
             running.add(task.task);
+            if (onRunningTasksChange) {
+                onRunningTasksChange(tasks.filter(t => running.has(t.task)));
+            }
             pending.delete(task.task);
 
             const agentName = task.assignee === "engineer"
@@ -376,31 +410,65 @@ async function executeProjectTasks(
             const taskTools = agentName === "doc-writer" ? TOOLSETS.DOC_WRITER : TOOLSETS.ENGINEER;
 
             try {
-                await runAgentSession({
+                // We do NOT use uiAPI directly for rendering text chunks for concurrent tasks 
+                // because multiple agents printing simultaneously to the main TUI 
+                // would corrupt the markdown/text block UI. Instead, we use a mock/proxy uiAPI
+                // that buffers or handles the progress animation internally, and only append 
+                // exactly when the task completes.
+                
+                // For now, we will notify that the task is starting, but we won't pass uiAPI 
+                // so that session text output is redirected/supressed until we have a better way
+                // to visualize it.
+                const mockUiAPI = uiAPI ? {
+                    appendUserMessage: () => {},
+                    appendAgentMessageStart: () => ({ appendText: () => {} }),
+                    appendSystemMessage: () => {},
+                    requestRender: () => {},
+                    promptSelect: async () => null,
+                } : undefined;
+
+                const sessionMessages = await runAgentSession({
                     agentName,
                     toolNames: taskTools,
                     userRequest: taskRequest,
-                    uiAPI,
+                    uiAPI: mockUiAPI, // Avoid concurrent TUI text writes and silence terminal
                 });
-                results.set(task.task, { status: "success" });
+                
+                if (uiAPI) {
+                     const finalAssistantMessageText = sessionMessages.slice().reverse().find(m => 'role' in m && m.role === "assistant")?.content?.[0] || {type:"text", text: "No completion output generated"};
+                     if ("type" in finalAssistantMessageText && finalAssistantMessageText.type === "text" && finalAssistantMessageText.text.trim()) {
+                         const block = uiAPI.appendAgentMessageStart(`${agentName} (Task ${task.task} Output)`);
+                         block.appendText(finalAssistantMessageText.text.trim());
+                     }
+                }
+                results.set(task.task, { status: "success", messages: sessionMessages });
             } catch (e) {
                 const error = e instanceof Error ? e : new Error(String(e));
+                if (uiAPI) {
+                     uiAPI.appendSystemMessage(`[Harns] ❌ Task ${task.task} failed (${agentName}): ${error.message}`);
+                }
                 results.set(task.task, { status: "failed", error: error.message });
                 failed.add(task.task);
             } finally {
                 running.delete(task.task);
+                if (onRunningTasksChange) {
+                    onRunningTasksChange(tasks.filter(t => running.has(t.task)));
+                }
             }
         });
 
+    // Wait for at least one to finish to re-evaluate readiness
         if (launches.length > 0) {
-            await Promise.race(launches); // Wait for at least one to finish to re-evaluate readiness
+            await Promise.race(launches);
         } else if (running.size > 0) {
-            await Promise.all(launches); // Fallback to wait for all running if none ready
+            // Fallback to wait for all running if none ready
+            // We use a small delay and continue looping while jobs run 
+            await new Promise((r) => setTimeout(r, 100)); // check again soon
+            continue;
         } else if (pending.size === 0) {
             break;
         } else {
-            // This happens if we have pending tasks but none are ready and none are running
-            // (i.e. blocked by failed tasks)
+            // Blocked dependencies
             tasks.filter((t) => pending.has(t.task)).forEach((t) => {
                 results.set(t.task, { status: "blocked" });
             });

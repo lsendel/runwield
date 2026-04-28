@@ -63,6 +63,23 @@ export async function startInteractiveSession(initialUserRequest, onMessage) {
     container.addChild(messageList);
     container.addChild(new Spacer(1));
 
+    const runningTasksComponent = {
+        /** @type {Array<{task: number, assignee: string, description: string}>} */
+        tasks: [],
+        frame: 0,
+        invalidate: () => {},
+        /** @param {number} w */
+        render: (w) => {
+            if (runningTasksComponent.tasks.length === 0) return [];
+            const frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+            const f = frames[runningTasksComponent.frame % frames.length];
+            return runningTasksComponent.tasks.map(t => {
+                return theme.fg("accent", f) + " " + theme.fg("success", t.assignee) + " " + theme.fg("dim", `(Task ${t.task})`);
+            });
+        }
+    };
+    container.addChild(runningTasksComponent);
+
     /** @type {Array<{base64: string, mimeType: string}>} */
     const pastedImages = [];
     const previewImages = new Container();
@@ -362,6 +379,15 @@ export async function startInteractiveSession(initialUserRequest, onMessage) {
             }
         },
         requestRender: () => {
+            tui.requestRender();
+        },
+        advanceSpinner: () => {
+            runningTasksComponent.frame++;
+            tui.requestRender();
+        },
+        /** @param {Array<{task: number, assignee: string, description: string}>} tasks */
+        setRunningTasks: (tasks) => {
+            runningTasksComponent.tasks = tasks;
             tui.requestRender();
         },
         /**
