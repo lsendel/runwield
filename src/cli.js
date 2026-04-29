@@ -70,6 +70,10 @@ async function main() {
 }
 
 main().catch((err) => {
-    console.error("[Harns] Fatal error:", err);
+    if (err instanceof Error && err.message.includes("Mnemosyne binary not found")) {
+        console.error(err.message);
+    } else {
+        console.error("[Harns] Fatal error:", err);
+    }
     Deno.exit(1);
 });

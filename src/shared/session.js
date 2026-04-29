@@ -6,12 +6,27 @@
 import { createAgentSession, DefaultResourceLoader, SessionManager } from "@mariozechner/pi-coding-agent";
 import { extractYaml, test as hasFrontMatter } from "@std/front-matter";
 import { join } from "@std/path";
-import { AGENT_DEFS_DIR, CORE_SYSTEM_PROMPT, CWD } from "../constants.js";
+import { AGENT_DEFS_DIR, CORE_SYSTEM_PROMPT, CWD, PROMPT_TEMPLATES_DIR } from "../constants.js";
 import mnemosyneExtension from "../extensions/mnemosyne/index.js";
+import { ensureMnemosyneBinary } from "./runtime-preflight.js";
 
 const HOME_DIR = Deno.env.get("HOME") || "";
 const HOME_AGENT_DEFS_DIR = HOME_DIR ? join(HOME_DIR, ".hns", "agents") : null;
 const LOCAL_AGENT_DEFS_DIR = join(CWD, ".hns", "agents");
+
+const HOME_PROMPTS_DIR = HOME_DIR ? join(HOME_DIR, ".hns", "prompts") : null;
+const LOCAL_PROMPTS_DIR = join(CWD, ".hns", "prompts");
+
+/** @typedef {"local" | "home" | "bundled"} PromptTemplateSource */
+
+/**
+ * @typedef {Object} PromptTemplateMeta
+ * @property {string} name
+ * @property {string} description
+ * @property {string | undefined} argumentHint
+ * @property {string} path
+ * @property {PromptTemplateSource} source
+ */
 
 /**
  * @returns {string[]}
@@ -101,6 +116,97 @@ export async function resolveAgentDefsDir() {
             `Tried bundled: ${AGENT_DEFS_DIR}`,
         ].join(" "),
     );
+}
+
+/**
+ * Resolve prompt template search paths by priority: local > home > bundled.
+ *
+ * @returns {string[]}
+ */
+export function getPromptTemplatePaths() {
+    return [
+        LOCAL_PROMPTS_DIR,
+        ...(HOME_PROMPTS_DIR ? [HOME_PROMPTS_DIR] : []),
+        PROMPT_TEMPLATES_DIR,
+    ];
+}
+
+/**
+ * Parse prompt-template markdown metadata.
+ *
+ * @param {string} filePath
+ * @returns {Promise<{ description: string, argumentHint?: string }>}
+ */
+async function parsePromptTemplateMeta(filePath) {
+    const raw = await Deno.readTextFile(filePath);
+
+    /** @type {Record<string, unknown>} */
+    let attrs = {};
+    let body = raw;
+
+    if (hasFrontMatter(raw)) {
+        const parsed = extractYaml(raw);
+        attrs = parsed.attrs;
+        body = parsed.body;
+    }
+
+    const frontmatterDescription = typeof attrs.description === "string" ? attrs.description.trim() : "";
+    const inferredDescription = body.split("\n").map((line) => line.trim()).find((line) => line.length > 0) || "";
+
+    const argumentHint = typeof attrs["argument-hint"] === "string" && attrs["argument-hint"].trim()
+        ? attrs["argument-hint"].trim()
+        : undefined;
+
+    return {
+        description: frontmatterDescription || inferredDescription,
+        argumentHint,
+    };
+}
+
+/**
+ * List all known prompt templates across bundled + home + local layers.
+ * First name wins, based on priority local > home > bundled.
+ *
+ * @returns {Promise<PromptTemplateMeta[]>}
+ */
+export async function listPromptTemplates() {
+    /** @type {PromptTemplateMeta[]} */
+    const templates = [];
+    const seen = new Set();
+
+    /** @type {Array<{dir: string, source: PromptTemplateSource}>} */
+    const layers = [
+        { dir: LOCAL_PROMPTS_DIR, source: "local" },
+        ...(HOME_PROMPTS_DIR ? [{ dir: HOME_PROMPTS_DIR, source: /** @type {PromptTemplateSource} */ ("home") }] : []),
+        { dir: PROMPT_TEMPLATES_DIR, source: "bundled" },
+    ];
+
+    for (const layer of layers) {
+        if (!(await directoryExists(layer.dir))) continue;
+
+        for await (const entry of Deno.readDir(layer.dir)) {
+            if (!entry.isFile || !entry.name.endsWith(".md")) continue;
+            const name = entry.name.replace(/\.md$/, "");
+            if (seen.has(name)) continue;
+
+            const filePath = join(layer.dir, entry.name);
+            try {
+                const meta = await parsePromptTemplateMeta(filePath);
+                templates.push({
+                    name,
+                    description: meta.description,
+                    argumentHint: meta.argumentHint,
+                    path: filePath,
+                    source: layer.source,
+                });
+                seen.add(name);
+            } catch {
+                // Ignore unreadable prompt templates.
+            }
+        }
+    }
+
+    return templates;
 }
 
 /**
@@ -234,6 +340,7 @@ export function abortActiveSession() {
 export async function runAgentSession(
     { agentName, toolNames, customTools, userRequest, images, uiAPI },
 ) {
+    await ensureMnemosyneBinary();
     const resourceAgentDir = await resolveAgentDefsDir();
     const agentDef = await loadAgentDef(agentName);
 
@@ -260,6 +367,8 @@ export async function runAgentSession(
         agentDir: resourceAgentDir,
         systemPromptOverride: () => agentDef.systemPrompt,
         extensionFactories: [mnemosyneExtension],
+        additionalPromptTemplatePaths: getPromptTemplatePaths(),
+        noPromptTemplates: true,
     });
     await loader.reload();
 

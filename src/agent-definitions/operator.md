@@ -25,7 +25,8 @@ work.
 
 You will receive either:
 
-The user's original request and a triage report containing: classification (always QUICK_FIX), complexity, summary, and affected paths.
+The user's original request and a triage report containing: classification (always QUICK_FIX), complexity, summary, and
+affected paths.
 
 or a direct prompt from the user.
 

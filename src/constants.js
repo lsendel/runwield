@@ -20,6 +20,9 @@ const SRC_DIR = dirname(fromFileUrl(import.meta.url));
 /** Directory containing bundled default agent definition markdown files. */
 export const AGENT_DEFS_DIR = join(SRC_DIR, "agent-definitions");
 
+/** Directory containing bundled default prompt template markdown files. */
+export const PROMPT_TEMPLATES_DIR = join(SRC_DIR, "prompt-templates");
+
 /**
  * Core system guidance prepended to every agent-specific system prompt.
  * Keeps cross-agent behavior aligned with Harns expectations.

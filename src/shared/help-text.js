@@ -10,7 +10,7 @@ const COMMAND_SUMMARIES = {
     [COMMAND_NAMES.AGENTS]: "List available agents or talk directly to one (--agent shorthand).",
     [COMMAND_NAMES.RESUME]: "Resume work from a saved plan by name or file path.",
     [COMMAND_NAMES.PLANS]: "List saved plans.",
-    [COMMAND_NAMES.SLEEP]: "Run memory optimization/cleanup using Mnemosyne.",
+    [COMMAND_NAMES.SLEEP]: "Run /sleep prompt template (via operator) for memory optimization/cleanup.",
     [COMMAND_NAMES.HELP]: "Show global help or help for a specific command.",
 };
 
@@ -68,7 +68,8 @@ const COMMAND_DETAILS = {
         ],
         notes: [
             "Requires mnemosyne binary in PATH.",
-            "Uses built-in Harns sleep request (no external file required).",
+            "Invokes bundled /sleep prompt template via operator.",
+            "You can also run /sleep directly inside the interactive TUI.",
         ],
     },
     [COMMAND_NAMES.HELP]: {

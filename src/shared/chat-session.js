@@ -11,11 +11,26 @@ import { readClipboardImage } from "./clipboard.js";
 import { createUiApi } from "./ui/api.js";
 import { SpinnerBlock } from "./ui/blocks.js";
 import { listPlans } from "../plan-store.js";
-import { abortActiveSession } from "./session.js";
+import { abortActiveSession, listPromptTemplates, runAgentSession } from "./session.js";
 import { listAvailableAgents } from "./agents.js";
 import { createDirectAgentHandler } from "./direct-agent.js";
+import { ensureMnemosyneBinary } from "./runtime-preflight.js";
 
 const UI_PADDING = { x: 0, y: 0 };
+
+const CHAT_COMMAND_HANDLERS = Object.freeze(["resume"]);
+const CHAT_PROMPT_AGENT_NAME = "operator";
+const CHAT_EXIT_COMMANDS = new Set(["quit", "exit", "q"]);
+const CHAT_BUILTIN_SLASH_NAMES = new Set([...CHAT_EXIT_COMMANDS, "agent", ...CHAT_COMMAND_HANDLERS]);
+
+/**
+ * @param {{ name: string, source: "local" | "home" | "bundled" }} template
+ */
+function toUserFacingPromptPath(template) {
+    if (template.source === "local") return `./.hns/prompts/${template.name}.md`;
+    if (template.source === "home") return `~/.hns/prompts/${template.name}.md`;
+    return `src/prompt-templates/${template.name}.md`;
+}
 
 let activeAgentName = "Router";
 /** @type {((userRequest: string, images: any[], uiAPI: import('./workflow.js').UiAPI) => Promise<void>) | null} */
@@ -45,9 +60,9 @@ export function setActiveModel(model) {
  * @param {string | null} initialUserRequest
  * @param {((userRequest: string, images: any[], uiAPI: import('./workflow.js').UiAPI) => Promise<void>) | null} onMessage - Handler for user submissions
  */
-// deno-lint-ignore require-await
 export async function startInteractiveSession(initialUserRequest, onMessage) {
     activeOnMessage = onMessage;
+    await ensureMnemosyneBinary();
     const tui = initTUI();
 
     const container = new Container();
@@ -150,6 +165,13 @@ export async function startInteractiveSession(initialUserRequest, onMessage) {
     tui.addChild(rootWrapper);
     tui.setFocus(editor);
 
+    // Load prompt-template metadata once per interactive session.
+    const promptTemplates = await listPromptTemplates();
+    const invokablePromptTemplates = promptTemplates.filter((t) => !CHAT_BUILTIN_SLASH_NAMES.has(t.name));
+    const blockedPromptTemplates = promptTemplates.filter((t) => CHAT_BUILTIN_SLASH_NAMES.has(t.name));
+    /** @type {Map<string, (typeof invokablePromptTemplates)[number]>} */
+    const promptTemplateByName = new Map(invokablePromptTemplates.map((t) => [t.name, t]));
+
     const autocompleteProvider = {
         /**
          * @param {string[]} lines
@@ -169,7 +191,11 @@ export async function startInteractiveSession(initialUserRequest, onMessage) {
                         aliases: ["exit", "q"],
                         description: "Exit the application",
                     },
-                    { name: "resume", aliases: [], description: "Resume a saved plan" },
+                    ...CHAT_COMMAND_HANDLERS.map((name) => ({
+                        name,
+                        aliases: [],
+                        description: name === "resume" ? "Resume a saved plan" : "Command",
+                    })),
                     { name: "agent", aliases: [], description: "Switch active agent" },
                 ];
 
@@ -184,6 +210,19 @@ export async function startInteractiveSession(initialUserRequest, onMessage) {
                         });
                     }
                 }
+
+                // Prompt templates (excluding blocked collisions with built-ins)
+                for (const t of invokablePromptTemplates) {
+                    if (t.name.startsWith(prefix)) {
+                        const label = t.argumentHint ? `${t.name} ${t.argumentHint}` : t.name;
+                        items.push({
+                            value: t.name,
+                            label,
+                            description: t.description,
+                        });
+                    }
+                }
+
                 if (items.length === 0) return null;
                 return { items, prefix: textBeforeCursor };
             }
@@ -314,19 +353,19 @@ export async function startInteractiveSession(initialUserRequest, onMessage) {
 
         /** @type {any} */ (editor).addToHistory(userRequest);
 
-        if (userRequest === "/quit" || userRequest === "/exit" || userRequest === "/q") {
-            editor.setText("");
-            tui.requestRender();
-            setTimeout(() => {
-                stopTUI();
-                setTimeout(() => Deno.exit(0), 100);
-            }, 50);
-            return;
-        }
-
         if (userRequest.startsWith("/")) {
             const [rawCmd, ...args] = userRequest.slice(1).split(" ");
             const cmd = rawCmd.trim();
+
+            if (CHAT_EXIT_COMMANDS.has(cmd)) {
+                editor.setText("");
+                tui.requestRender();
+                setTimeout(() => {
+                    stopTUI();
+                    setTimeout(() => Deno.exit(0), 100);
+                }, 50);
+                return;
+            }
 
             // Built-in /agent command
             if (cmd === "agent") {
@@ -392,7 +431,7 @@ export async function startInteractiveSession(initialUserRequest, onMessage) {
 
             const { commandRegistry } = await import("../cmd/registry.js");
 
-            if (commandRegistry[cmd]) {
+            if (CHAT_COMMAND_HANDLERS.includes(cmd) && commandRegistry[cmd]) {
                 editor.disableSubmit = true;
                 try {
                     await commandRegistry[cmd](args, {
@@ -410,6 +449,39 @@ export async function startInteractiveSession(initialUserRequest, onMessage) {
                     editor.disableSubmit = false;
                 }
             } else {
+                const template = promptTemplateByName.get(cmd);
+
+                if (template) {
+                    // Dispatch prompt templates to operator (not selected chat agent)
+                    editor.disableSubmit = true;
+                    editor.setText("");
+
+                    const images = [...pastedImages];
+                    pastedImages.length = 0;
+                    previewImages.clear();
+
+                    uiAPI.appendUserMessage(userRequest);
+                    images.forEach((img) => {
+                        if (uiAPI.appendImage) uiAPI.appendImage(img.base64, img.mimeType);
+                    });
+
+                    try {
+                        await runAgentSession({
+                            agentName: CHAT_PROMPT_AGENT_NAME,
+                            userRequest,
+                            images,
+                            uiAPI,
+                        });
+                    } catch (err) {
+                        uiAPI.appendSystemMessage(
+                            `Error: ${err instanceof Error ? err.message : String(err)}`,
+                        );
+                    } finally {
+                        editor.disableSubmit = false;
+                    }
+                    return;
+                }
+
                 uiAPI.appendSystemMessage(`Unknown command: /${cmd}`);
                 editor.setText("");
                 editor.disableSubmit = false;
@@ -482,7 +554,7 @@ export async function startInteractiveSession(initialUserRequest, onMessage) {
         // Check if Enter is pressed and text matches /quit exactly
         if (matchesKey(data, Key.enter) || matchesKey(data, Key.return)) {
             const currentText = /** @type {any} */ (editor).getText().trim();
-            if (currentText === "/quit" || currentText === "/exit" || currentText === "/q") {
+            if (CHAT_EXIT_COMMANDS.has(currentText.slice(1)) && currentText.startsWith("/")) {
                 editor.setText("");
                 tui.requestRender();
                 setTimeout(() => {
@@ -526,6 +598,26 @@ export async function startInteractiveSession(initialUserRequest, onMessage) {
         }
         originalHandleInput(data);
     };
+
+    // User-facing prompt listing and collision warnings
+    if (invokablePromptTemplates.length > 0) {
+        const names = invokablePromptTemplates.map((t) => `/${t.name}`).join(", ");
+        uiAPI.appendSystemMessage(`Loaded prompt templates (${invokablePromptTemplates.length}): ${names}`);
+        uiAPI.appendSystemMessage(
+            `Prompt slash commands execute via ${CHAT_PROMPT_AGENT_NAME}.`,
+        );
+    } else {
+        uiAPI.appendSystemMessage("Loaded prompt templates: none");
+    }
+
+    for (const blocked of blockedPromptTemplates) {
+        if (blocked.source !== "local" && blocked.source !== "home") continue;
+        const userPath = toUserFacingPromptPath(blocked);
+        uiAPI.appendSystemMessage(
+            `Warning: ${userPath} command can't be invoked because it would override Harns built-in commands. Please rename it.`,
+            true,
+        );
+    }
 
     // Trigger initial user request
     if (initialUserRequest) {
