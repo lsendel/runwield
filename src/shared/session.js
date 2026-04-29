@@ -318,11 +318,15 @@ const activeSessions = new Set();
 
 /**
  * Stop all currently active agent sessions.
+ *
+ * @returns {boolean} true when at least one active session was aborted
  */
 export function abortActiveSession() {
+    const hadActiveSessions = activeSessions.size > 0;
     for (const session of activeSessions) {
         session.abort();
     }
+    return hadActiveSessions;
 }
 
 /**

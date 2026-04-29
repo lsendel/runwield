@@ -1,3 +1,7 @@
+---
+description: Create a consistent glossary of domain terminology from the current conversation, resolving ambiguities and synonyms to establish a clear ubiquitous language for the project.
+---
+
 Extract and formalize domain terminology from the current conversation into a consistent glossary, saved to a local
 file.
 

@@ -529,9 +529,10 @@ export async function startInteractiveSession(initialUserRequest, onMessage) {
     editor.handleInput = async (data) => {
         // Intercept Esc to abort agent
         if (matchesKey(data, Key.escape)) {
-            uiAPI.appendSystemMessage("[Harns] Canceling operation...");
-            abortActiveSession();
-            tui.requestRender();
+            if (abortActiveSession()) {
+                uiAPI.appendSystemMessage("[Harns] Canceling operation...");
+                tui.requestRender();
+            }
             return;
         }
 
@@ -544,9 +545,11 @@ export async function startInteractiveSession(initialUserRequest, onMessage) {
                 return;
             } else {
                 lastCtrlC = now;
-                uiAPI.appendSystemMessage("[Harns] Keyboard interrupt. Press again to quit.");
-                abortActiveSession();
-                tui.requestRender();
+                const aborted = abortActiveSession();
+                if (aborted) {
+                    uiAPI.appendSystemMessage("[Harns] Keyboard interrupt. Press again to quit.");
+                    tui.requestRender();
+                }
                 return;
             }
         }
