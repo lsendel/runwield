@@ -13,7 +13,7 @@ affectedPaths:
     - "src/agent-definitions/architect.md"
 createdAt: "2026-04-30T01:50:16.042Z"
 updatedAt: "2026-04-30T01:59:45.112Z"
-status: "approved"
+status: "completed"
 origin: "internal"
 ---
 
