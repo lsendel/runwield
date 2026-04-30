@@ -339,6 +339,7 @@ export async function executePlan(planName, triageMeta, uiAPI, structuredTasks) 
                 await runEngineerWithPlan(planName, plan.body, uiAPI);
             }
         } catch (e) {
+            if (spinnerInterval) clearInterval(spinnerInterval);
             const error = e instanceof Error ? e : new Error(String(e));
             const msg = `[Harns] TASK TABLE ERROR: ${error.message}`;
             if (uiAPI) uiAPI.appendSystemMessage(msg);
