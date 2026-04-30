@@ -16,9 +16,19 @@ import { createDirectAgentHandler } from "../../shared/direct-agent.js";
  * - `hns --agent <name>` → start TUI with that agent
  * - `hns --agent <name> "<prompt>"` → start TUI with agent + initial prompt
  *
+ * Inside the TUI (`/agent`):
+ * - `/agent router` → reset to default router flow
+ * - `/agent <name>` → direct switch agent
+ * - `/agent` → show interactive selection
+ *
  * @param {string[]} argv
+ * @param {Object} [options]
+ * @param {import('../../shared/workflow.js').UiAPI} [options.uiAPI]
+ * @param {any} [options.editor]
+ * @param {string} [options.text]
+ * @param {any} [options.tui]
  */
-export async function runAgentsCommand(argv) {
+export async function runAgentsCommand(argv, options = {}) {
     const parsed = parseArgs(argv, {
         boolean: ["help"],
         alias: { h: "help" },
@@ -33,6 +43,64 @@ export async function runAgentsCommand(argv) {
     const agents = await listAvailableAgents();
     const [agentName, ...rest] = parsed._.map(String);
 
+    // Is this called from TUI?
+    if (options.uiAPI && options.editor) {
+        options.editor.setText("");
+        const targetName = agentName?.trim();
+        const { tui, uiAPI } = options;
+
+        if (targetName === "router") {
+            // Reset to default router flow
+            const { routerCmdOnMessage } = await import("../router/index.js");
+            setActiveAgent("Router", routerCmdOnMessage, uiAPI);
+            tui.setFocus(options.editor);
+            return;
+        }
+
+        if (targetName && targetName !== "undefined") {
+            // Direct switch: /agent <name>
+            const match = agents.find((a) => a.name === targetName);
+            if (!match) {
+                uiAPI.appendSystemMessage(
+                    `Unknown agent: "${targetName}". Use /agent to see available agents.`,
+                );
+                tui.setFocus(options.editor);
+                return;
+            }
+            const handler = createDirectAgentHandler(targetName);
+            setActiveAgent(match.displayName, handler, uiAPI, match.model);
+            tui.setFocus(options.editor);
+            return;
+        }
+
+        // No args: show interactive selection
+        const agentOptions = [
+            { value: "router", label: "router — Reset to default router (triage flow)" },
+            ...agents.map((a) => ({
+                value: a.name,
+                label: `${a.name} — ${a.description}`,
+            })),
+        ];
+
+        const chosen = await uiAPI.promptSelect("Switch agent:", agentOptions);
+        if (!chosen) {
+            tui.setFocus(options.editor);
+            return; // cancelled
+        }
+
+        if (chosen === "router") {
+            const { routerCmdOnMessage } = await import("../router/index.js");
+            setActiveAgent("Router", routerCmdOnMessage, uiAPI);
+        } else {
+            const handler = createDirectAgentHandler(chosen);
+            const match = agents.find((a) => a.name === chosen);
+            setActiveAgent(match?.displayName || chosen, handler, uiAPI, match?.model);
+        }
+        tui.setFocus(options.editor);
+        return;
+    }
+
+    // Standard CLI flow
     // No agent name: list all and exit
     if (!agentName || agentName === "undefined") {
         console.log("\nAvailable agents:\n");

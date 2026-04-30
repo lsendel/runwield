@@ -22,15 +22,15 @@ import { SpinnerBlock } from "./ui/blocks.js";
 import { listPlans } from "../plan-store.js";
 import { abortActiveSession, listPromptTemplates, runAgentSession } from "./session.js";
 import { listAvailableAgents } from "./agents.js";
-import { createDirectAgentHandler } from "./direct-agent.js";
 import { ensureMnemosyneBinary } from "./runtime-preflight.js";
+import { COMMAND_NAMES } from "../constants.js";
 
 const UI_PADDING = { x: 0, y: 0 };
 
-const CHAT_COMMAND_HANDLERS = Object.freeze(["resume"]);
+const CHAT_COMMAND_HANDLERS = Object.freeze(["resume", "agent"]);
 const CHAT_PROMPT_AGENT_NAME = "operator";
 const CHAT_EXIT_COMMANDS = new Set(["quit", "exit", "q"]);
-const CHAT_BUILTIN_SLASH_NAMES = new Set([...CHAT_EXIT_COMMANDS, "agent", ...CHAT_COMMAND_HANDLERS]);
+export const CHAT_BUILTIN_SLASH_NAMES = new Set([...CHAT_EXIT_COMMANDS, "agent", ...CHAT_COMMAND_HANDLERS]);
 
 /**
  * @param {{ name: string, source: "local" | "home" | "bundled" }} template
@@ -214,7 +214,11 @@ export async function startInteractiveSession(initialUserRequest, onMessage) {
                 /** @type {import('@mariozechner/pi-tui').SlashCommand} */
                 const cmd = {
                     name,
-                    description: name === "resume" ? "Resume a saved plan" : "Command",
+                    description: name === "resume"
+                        ? "Resume a saved plan"
+                        : name === "agent"
+                        ? "Switch active agent"
+                        : "Command",
                     getArgumentCompletions: name === "resume"
                         ? async (argumentPrefix) => {
                             const plans = await listPlans(Deno.cwd());
@@ -226,25 +230,25 @@ export async function startInteractiveSession(initialUserRequest, onMessage) {
                                     description: `${p.attrs.classification} - ${p.attrs.status}`,
                                 }));
                         }
+                        : name === "agent"
+                        ? async (argumentPrefix) => {
+                            const agents = await listAvailableAgents();
+                            return [
+                                {
+                                    value: "router",
+                                    label: "router",
+                                    description: "Reset to default router (triage) flow",
+                                },
+                                ...agents.map((a) => ({
+                                    value: a.name,
+                                    label: a.name,
+                                    description: a.description,
+                                })),
+                            ].filter((item) => item.value.startsWith(argumentPrefix));
+                        }
                         : undefined,
                 };
                 return cmd;
-            }),
-            /** @type {import('@mariozechner/pi-tui').SlashCommand} */
-            ({
-                name: "agent",
-                description: "Switch active agent",
-                getArgumentCompletions: async (argumentPrefix) => {
-                    const agents = await listAvailableAgents();
-                    return [
-                        { value: "router", label: "router", description: "Reset to default router (triage) flow" },
-                        ...agents.map((a) => ({
-                            value: a.name,
-                            label: a.name,
-                            description: a.description,
-                        })),
-                    ].filter((item) => item.value.startsWith(argumentPrefix));
-                },
             }),
             ...invokablePromptTemplates.map((t) => ({
                 name: t.name,
@@ -321,6 +325,100 @@ export async function startInteractiveSession(initialUserRequest, onMessage) {
 
         /** @type {any} */ (editor).addToHistory(userRequest);
 
+        // Bash command interception
+        if (userRequest.startsWith("!")) {
+            const isExcluded = userRequest.startsWith("!!");
+            const command = isExcluded ? userRequest.slice(2).trim() : userRequest.slice(1).trim();
+
+            if (command) {
+                editor.setText("");
+                editor.disableSubmit = true;
+
+                pastedImages.length = 0;
+                previewImages.clear();
+
+                if (!isExcluded) {
+                    uiAPI.appendUserMessage(userRequest);
+                }
+
+                try {
+                    const activeToolId = `bash-${Date.now()}`;
+                    if (!isExcluded) {
+                        uiAPI.addToolInvoked?.({
+                            id: activeToolId,
+                            name: "bash",
+                            input: { command },
+                        });
+                    }
+
+                    const toolBlock = isExcluded ? undefined : uiAPI.startToolExecution?.(activeToolId, `bash`, command);
+
+                    const { exec } = await import("child_process");
+
+                    let outputBuffer = "";
+
+                    const startTime = Date.now();
+                    const code = await new Promise((resolve) => {
+                        const proc = exec(command, { cwd: Deno.cwd() });
+
+                        proc.stdout?.on("data", (data) => {
+                            if (!isExcluded) {
+                                toolBlock?.appendOutput(data.toString());
+                                outputBuffer += data.toString();
+                            } else {
+                                console.log(data.toString());
+                            }
+                        });
+
+                        proc.stderr?.on("data", (data) => {
+                            if (!isExcluded) {
+                                toolBlock?.appendOutput(data.toString());
+                                outputBuffer += data.toString();
+                            } else {
+                                console.error(data.toString());
+                            }
+                        });
+
+                        proc.on("close", (code) => {
+                            resolve(code);
+                        });
+
+                        proc.on("error", (err) => {
+                            if (!isExcluded) {
+                                toolBlock?.appendOutput(`Error starting process: ${err.message}`);
+                                outputBuffer += `Error starting process: ${err.message}\n`;
+                            } else {
+                                console.error(`Error starting process: ${err.message}`);
+                            }
+                            resolve(1);
+                        });
+                    });
+
+                    const durationMs = Date.now() - startTime;
+                    if (!isExcluded) {
+                        toolBlock?.endExecution(code !== 0, durationMs);
+                        uiAPI.addToolResult?.({
+                            id: activeToolId,
+                            name: "bash",
+                            result: outputBuffer,
+                            isError: code !== 0,
+                            durationMs,
+                        });
+                    }
+                } catch (err) {
+                    uiAPI.appendSystemMessage(
+                        `Error executing bash command: ${err instanceof Error ? err.message : String(err)}`,
+                    );
+                } finally {
+                    editor.disableSubmit = false;
+                    if (uiAPI.setBusy) uiAPI.setBusy(false);
+                    if (uiAPI.enableInput) uiAPI.enableInput();
+                    tui.setFocus(editor);
+                }
+                return;
+            }
+        }
+
         if (userRequest.startsWith("/")) {
             const [rawCmd, ...args] = userRequest.slice(1).split(" ");
             const cmd = rawCmd.trim();
@@ -335,70 +433,19 @@ export async function startInteractiveSession(initialUserRequest, onMessage) {
                 return;
             }
 
-            // Built-in /agent command
-            if (cmd === "agent") {
-                editor.setText("");
-                const targetName = args.join(" ").trim();
-
-                if (targetName === "router") {
-                    // Reset to default router flow
-                    const { routerCmdOnMessage } = await import("../cmd/router/index.js");
-                    setActiveAgent("Router", routerCmdOnMessage, uiAPI);
-                    tui.setFocus(editor);
-                    return;
-                }
-
-                if (targetName) {
-                    // Direct switch: /agent <name>
-                    const agents = await listAvailableAgents();
-                    const match = agents.find((a) => a.name === targetName);
-                    if (!match) {
-                        uiAPI.appendSystemMessage(
-                            `Unknown agent: "${targetName}". Use /agent to see available agents.`,
-                        );
-                        tui.setFocus(editor);
-                        return;
-                    }
-                    const handler = createDirectAgentHandler(targetName);
-                    setActiveAgent(match.displayName, handler, uiAPI, match.model);
-                    tui.setFocus(editor);
-                    return;
-                }
-
-                // No args: show interactive selection
-                const agents = await listAvailableAgents();
-                const options = [
-                    { value: "router", label: "router — Reset to default router (triage flow)" },
-                    ...agents.map((a) => ({
-                        value: a.name,
-                        label: `${a.name} — ${a.description}`,
-                    })),
-                ];
-
-                const chosen = await uiAPI.promptSelect("Switch agent:", options);
-                if (!chosen) {
-                    tui.setFocus(editor);
-                    return; // cancelled
-                }
-
-                if (chosen === "router") {
-                    const { routerCmdOnMessage } = await import("../cmd/router/index.js");
-                    setActiveAgent("Router", routerCmdOnMessage, uiAPI);
-                } else {
-                    const handler = createDirectAgentHandler(chosen);
-                    const match = agents.find((a) => a.name === chosen);
-                    setActiveAgent(match?.displayName || chosen, handler, uiAPI, match?.model);
-                }
-                tui.setFocus(editor);
-                return;
-            }
+            // Built-in command intercepted logic to just reset editor state,
+            // dispatch actually handled via standard registry for TUI route now.
+            // (The `agent` command is handled in the generic registry routing block below.)
 
             const { commandRegistry } = await import("../cmd/registry.js");
 
-            if (CHAT_COMMAND_HANDLERS.includes(cmd) && commandRegistry[cmd]) {
+            // Look up the command in the registry handling both 'agents' (CLI mapped name) and 'agent' (slash alias)
+            const registryKey = cmd === "agent" ? COMMAND_NAMES.AGENTS : cmd;
+
+            if (CHAT_COMMAND_HANDLERS.includes(cmd) && commandRegistry[registryKey]) {
                 editor.disableSubmit = true;
                 try {
-                    await commandRegistry[cmd](args, {
+                    await commandRegistry[registryKey](args, {
                         uiAPI,
                         editor,
                         tui,

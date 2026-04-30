@@ -52,6 +52,8 @@ function extractAssistantOutput(messages) {
  * @property {(id: string, name: string, argsStr: string) => any} [startToolExecution]
  * @property {(id: string) => any} [getActiveToolBlock]
  * @property {() => void} [toggleToolOutputsExpanded]
+ * @property {(event: any) => void} [addToolInvoked]
+ * @property {(event: any) => void} [addToolResult]
  */
 
 /**
