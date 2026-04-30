@@ -1,6 +1,12 @@
-import { Container, Input, SelectList, Spacer, Text } from "@mariozechner/pi-tui";
-import { AgentMessageBlock, SystemMessageBlock, ToolExecutionBlock, UserPromptBlock } from "./blocks.js";
-import { selectListTheme, theme } from "../theme.js";
+import { Spacer } from "@mariozechner/pi-tui";
+import {
+    AgentMessageBlock,
+    PromptSelectBlock,
+    PromptTextBlock,
+    SystemMessageBlock,
+    ToolExecutionBlock,
+    UserPromptBlock,
+} from "./blocks.js";
 
 /**
  * Creates a UiAPI object for Harns TUI.
@@ -132,55 +138,23 @@ export function createUiApi(tui, messageList, spinner) {
          */
         promptSelect: (title, options) => {
             return new Promise((resolve) => {
-                const container = new Container();
-                container.addChild(new Text("─".repeat(40), 0, 0));
-                container.addChild(new Text(theme.fg("accent", theme.bold(title)), 0, 0));
-                container.addChild(new Text("─".repeat(40), 0, 0));
+                const block = new PromptSelectBlock(title, options);
+                messageList.addChild(block);
 
-                const selectList = new SelectList(
-                    options,
-                    Math.min(options.length, 10),
-                    selectListTheme,
-                );
-
-                container.addChild(selectList);
-                container.addChild(new Text("─".repeat(40), 0, 0));
-                container.addChild(new Text(theme.fg("dim", "↑↓ navigate • enter select • esc cancel"), 0, 0));
-
-                let settled = false;
-                /** @type {import('@mariozechner/pi-tui').OverlayHandle | null} */
-                let handle = null;
-
-                /** @param {string | null} value */
-                const settle = (value) => {
-                    if (settled) return;
-                    settled = true;
-                    if (handle) handle.hide();
-                    resolve(value);
-                };
-
-                selectList.onSelect = (item) => settle(item.value);
-                selectList.onCancel = () => settle(null);
-
-                const component = {
-                    /** @param {number} w */
-                    render: (w) => container.render(w),
-                    invalidate: () => container.invalidate(),
-                    /** @param {string} data */
-                    handleInput: (data) => {
-                        selectList.handleInput(data);
-                        tui.requestRender();
-                    },
-                };
-
-                handle = tui.showOverlay(component, {
-                    width: "80%",
-                    minWidth: 40,
-                    anchor: "center",
-                    margin: 2,
-                });
-
+                tui.setFocus(block);
                 tui.requestRender();
+
+                // Override settle in block to handle promise resolution and focus
+                const originalSettle = block.settle.bind(block);
+                block.settle = (value) => {
+                    originalSettle(value);
+                    resolve(value);
+                    tui.requestRender();
+                };
+
+                // Forward list events to block's settle method
+                block.list.onSelect = (item) => block.settle(item.value);
+                block.list.onCancel = () => block.settle(null);
             });
         },
 
@@ -192,69 +166,34 @@ export function createUiApi(tui, messageList, spinner) {
             const { defaultValue, placeholder, allowEmpty = true } = opts;
 
             return new Promise((resolve) => {
-                const container = new Container();
-                const input = new Input();
-                input.setValue(defaultValue || "");
-
-                container.addChild(new Text("─".repeat(40), 0, 0));
-                container.addChild(new Text(theme.fg("accent", theme.bold(title)), 0, 0));
-                if (placeholder) {
-                    container.addChild(new Text(theme.fg("dim", placeholder), 0, 0));
-                }
-                container.addChild(new Text("─".repeat(40), 0, 0));
-                container.addChild(input);
-                container.addChild(new Text("─".repeat(40), 0, 0));
-
                 const hints = ["enter submit", "esc cancel"];
                 if (!allowEmpty) hints.unshift("non-empty required");
-                container.addChild(new Text(theme.fg("dim", hints.join(" • ")), 0, 0));
+                const hintText = placeholder ? `${placeholder} • ${hints.join(" • ")}` : hints.join(" • ");
 
-                let settled = false;
-                /** @type {import('@mariozechner/pi-tui').OverlayHandle | null} */
-                let handle = null;
+                const block = new PromptTextBlock(title, hintText);
+                if (defaultValue) {
+                    block.input.setValue(defaultValue);
+                }
 
-                /** @param {string | null} value */
-                const settle = (value) => {
-                    if (settled) return;
-                    settled = true;
-                    if (handle) handle.hide();
+                messageList.addChild(block);
+
+                tui.setFocus(block);
+                tui.requestRender();
+
+                const originalSettle = block.settle.bind(block);
+                block.settle = (value) => {
+                    originalSettle(value);
                     resolve(value);
+                    tui.requestRender();
                 };
 
-                input.onSubmit = (value) => {
+                block.input.onSubmit = (value) => {
                     const finalValue = value || defaultValue || "";
                     if (!allowEmpty && !finalValue.trim()) return;
-                    settle(finalValue);
+                    block.settle(finalValue);
                 };
 
-                input.onEscape = () => settle(null);
-
-                const component = {
-                    get focused() {
-                        return input.focused;
-                    },
-                    /** @param {boolean} value */
-                    set focused(value) {
-                        input.focused = value;
-                    },
-                    /** @param {number} w */
-                    render: (w) => container.render(w),
-                    invalidate: () => container.invalidate(),
-                    /** @param {string} data */
-                    handleInput: (data) => {
-                        input.handleInput(data);
-                        tui.requestRender();
-                    },
-                };
-
-                handle = tui.showOverlay(component, {
-                    width: "80%",
-                    minWidth: 50,
-                    anchor: "center",
-                    margin: 2,
-                });
-
-                tui.requestRender();
+                block.input.onEscape = () => block.settle(null);
             });
         },
 

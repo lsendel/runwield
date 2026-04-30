@@ -20,10 +20,10 @@
         "@joplin/turndown-plugin-gfm": "npm:@joplin/turndown-plugin-gfm@^1.0.64"
     },
     "tasks": {
-        "ci": "deno task check && deno lint && deno fmt --check",
+        "ci": "deno task check && deno lint && deno fmt --check && deno task test",
         "cli": "deno run -A src/cli.js",
-        "check": "deno check src/cli.js",
-        "resume": "deno run -A src/cli.js resume",
+        "test": "deno test -A",
+        "check": "deno check --doc **/*.js",
         "compile": "deno compile -A --include src/agent-definitions --include src/prompt-templates --output ./bin/hns src/cli.js"
     },
     "fmt": {

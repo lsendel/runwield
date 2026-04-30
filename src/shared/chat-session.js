@@ -33,13 +33,14 @@ function toUserFacingPromptPath(template) {
 }
 
 let activeAgentName = "Router";
-/** @type {((userRequest: string, images: any[], uiAPI: import('./workflow.js').UiAPI) => Promise<void>) | null} */
+/** @type {((userRequest: string, images: any[], uiAPI: import('./workflow.js').UiAPI, sessionManager: import('@mariozechner/pi-coding-agent').SessionManager) => Promise<void>) | null} */
 let activeOnMessage = null;
+let rootSessionManager = null;
 
 /**
  * Update the active agent and its message handler dynamically.
  * @param {string} agentName
- * @param {(userRequest: string, images: any[], uiAPI: import('./workflow.js').UiAPI) => Promise<void>} handler
+ * @param {(userRequest: string, images: any[], uiAPI: import('./workflow.js').UiAPI, sessionManager: import('@mariozechner/pi-coding-agent').SessionManager) => Promise<void>} handler
  */
 export function setActiveAgent(agentName, handler) {
     activeAgentName = agentName;
@@ -58,9 +59,11 @@ export function setActiveModel(model) {
 /**
  * Starts the interactive TUI loop.
  * @param {string | null} initialUserRequest
- * @param {((userRequest: string, images: any[], uiAPI: import('./workflow.js').UiAPI) => Promise<void>) | null} onMessage - Handler for user submissions
+ * @param {((userRequest: string, images: any[], uiAPI: import('./workflow.js').UiAPI, sessionManager: import('@mariozechner/pi-coding-agent').SessionManager) => Promise<void>) | null} onMessage - Handler for user submissions
  */
 export async function startInteractiveSession(initialUserRequest, onMessage) {
+    const { SessionManager } = await import("@mariozechner/pi-coding-agent");
+    rootSessionManager = SessionManager.inMemory();
     activeOnMessage = onMessage;
     await ensureMnemosyneBinary();
     const tui = initTUI();
@@ -474,6 +477,7 @@ export async function startInteractiveSession(initialUserRequest, onMessage) {
                             userRequest,
                             images,
                             uiAPI,
+                            sessionManager: rootSessionManager,
                         });
                     } catch (err) {
                         uiAPI.appendSystemMessage(
@@ -505,10 +509,10 @@ export async function startInteractiveSession(initialUserRequest, onMessage) {
         });
 
         try {
-            if (activeOnMessage) {
-                await activeOnMessage(userRequest, images, uiAPI);
+            if (activeOnMessage && rootSessionManager) {
+                await activeOnMessage(userRequest, images, uiAPI, rootSessionManager);
             } else {
-                uiAPI.appendSystemMessage("Error: No active agent handler.");
+                uiAPI.appendSystemMessage("Error: No active agent handler or session manager.");
             }
         } catch (err) {
             uiAPI.appendSystemMessage(

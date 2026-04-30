@@ -1,5 +1,5 @@
-import { Container, Markdown, Spacer, Text } from "@mariozechner/pi-tui";
-import { markdownTheme, theme } from "../theme.js";
+import { Container, Input, Markdown, SelectList, Spacer, Text } from "@mariozechner/pi-tui";
+import { markdownTheme, selectListTheme, theme } from "../theme.js";
 
 /**
  * Format system line text. If line starts with a bracketed prefix (e.g. `[Harns]`),
@@ -345,8 +345,155 @@ export class AgentMessageBlock {
 }
 
 /**
- * Inline Spinner Block for showing active operations.
+ * Prompt Select Block
+ * Embeds a SelectList vertically in the chat stream.
  */
+export class PromptSelectBlock {
+    /**
+     * @param {string} promptTitle
+     * @param {import("@mariozechner/pi-tui").SelectItem[]} items
+     * @param {string} [hint]
+     */
+    constructor(promptTitle, items, hint = "") {
+        this.container = new Container();
+
+        // Header
+        const headerText = theme.fg("text", theme.bold(promptTitle));
+        this.header = new ColoredBlock("surface1", new PaddedBlock(2, 1, new Text(headerText, 0, 0)));
+        this.container.addChild(this.header);
+
+        // Body with SelectList
+        this.list = new SelectList(items, Math.min(items.length, 10), selectListTheme);
+
+        this.bodyBlock = new ColoredBlock("surface0", new PaddedBlock(2, 0, this.list));
+        this.container.addChild(this.bodyBlock);
+
+        // Footer with hint
+        const hintText = hint || "Use arrows to navigate, Enter to select, Esc to cancel";
+        this.footer = new ColoredBlock("surface1", new PaddedBlock(2, 1, new Text(theme.fg("dim", hintText), 0, 0)));
+        this.container.addChild(this.footer);
+
+        this.settled = false;
+        this.chosenValue = null;
+    }
+
+    /**
+     * Called when selection completes
+     * @param {string|null} value
+     */
+    settle(value) {
+        this.settled = true;
+        this.chosenValue = value;
+        // Strip out the interactive parts to leave a single-line summary
+        this.container.children = [];
+        let summaryText;
+        if (value === null) {
+            summaryText = theme.fg("surface2", "(Cancelled)");
+        } else {
+            summaryText = theme.fg("text", value);
+        }
+        this.container.addChild(new ColoredBlock("surface0", new PaddedBlock(2, 1, new Text(summaryText, 0, 0))));
+        this.invalidate();
+    }
+
+    /** @param {string} data */
+    handleInput(data) {
+        if (this.settled) return;
+        this.list.handleInput(data);
+    }
+
+    focus() {
+        // the generic select-list in pi-tui doesn't have an explicit focus property
+        // so we don't need to do anything here since we handleInput directly
+    }
+
+    blur() {
+        // generic select-list doesn't explicitly track focus
+    }
+
+    invalidate() {
+        this.container.invalidate();
+    }
+
+    /** @param {number} w */
+    render(w) {
+        return this.container.render(w);
+    }
+}
+
+/**
+ * Prompt Text Block
+ * Embeds an Input vertically in the chat stream.
+ */
+export class PromptTextBlock {
+    /**
+     * @param {string} promptTitle
+     * @param {string} [hint]
+     */
+    constructor(promptTitle, hint = "") {
+        this.container = new Container();
+
+        // Header
+        const headerText = theme.fg("text", theme.bold(promptTitle));
+        this.header = new ColoredBlock("surface1", new PaddedBlock(2, 1, new Text(headerText, 0, 0)));
+        this.container.addChild(this.header);
+
+        // Body with Input
+        this.input = new Input();
+        this.bodyBlock = new ColoredBlock("surface0", new PaddedBlock(2, 0, this.input));
+        this.container.addChild(this.bodyBlock);
+
+        // Footer with hint
+        const hintText = hint || "Enter text and press Enter, Esc to cancel";
+        this.footer = new ColoredBlock("surface1", new PaddedBlock(2, 1, new Text(theme.fg("dim", hintText), 0, 0)));
+        this.container.addChild(this.footer);
+
+        this.settled = false;
+        this.chosenValue = null;
+    }
+
+    /**
+     * Called when input completes
+     * @param {string|null} value
+     */
+    settle(value) {
+        this.settled = true;
+        this.chosenValue = value;
+        // Strip out the interactive parts to leave a single-line summary
+        this.container.children = [];
+        let summaryText;
+        if (value === null) {
+            summaryText = theme.fg("surface2", "(Cancelled)");
+        } else {
+            summaryText = theme.fg("text", value);
+        }
+        this.container.addChild(new ColoredBlock("surface0", new PaddedBlock(2, 1, new Text(summaryText, 0, 0))));
+        this.invalidate();
+    }
+
+    /** @param {string} data */
+    handleInput(data) {
+        if (this.settled) return;
+        this.input.handleInput(data);
+    }
+
+    focus() {
+        this.input.focused = true;
+    }
+
+    blur() {
+        this.input.focused = false;
+    }
+
+    invalidate() {
+        this.container.invalidate();
+    }
+
+    /** @param {number} w */
+    render(w) {
+        return this.container.render(w);
+    }
+}
 export class SpinnerBlock {
     constructor() {
         this.frame = 0;
