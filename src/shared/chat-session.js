@@ -253,6 +253,7 @@ export async function startInteractiveSession(initialUserRequest, onMessage) {
             })),
         ],
         Deno.cwd(),
+        "fd", // Since pi 0.20 the agent guarantees that fd is available in PATH or it polyfills it so using 'fd' directly as binary path is safe.
     );
     editor.setAutocompleteProvider(autocompleteProvider);
 
