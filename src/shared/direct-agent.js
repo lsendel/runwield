@@ -14,15 +14,16 @@ import { runAgentSession } from "./session.js";
  * signature used by `setActiveAgent()` / `startInteractiveSession()`.
  *
  * @param {string} agentName - Agent definition name (filename without .md)
- * @returns {(userRequest: string, images: Array<{base64: string, mimeType: string}>, uiAPI: import('./workflow.js').UiAPI) => Promise<void>}
+ * @returns {(userRequest: string, images: Array<{base64: string, mimeType: string}>, uiAPI: import('./workflow.js').UiAPI, sessionManager?: import('@mariozechner/pi-coding-agent').SessionManager) => Promise<void>}
  */
 export function createDirectAgentHandler(agentName) {
-    return async (userRequest, images, uiAPI) => {
+    return async (userRequest, images, uiAPI, sessionManager) => {
         await runAgentSession({
             agentName,
             userRequest,
             images,
             uiAPI,
+            sessionManager,
         });
     };
 }

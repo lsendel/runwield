@@ -15,8 +15,6 @@ tools:
     - memory_store
     - memory_store_global
     - memory_delete
-    - user_interview
-    - plan_written
 ---
 
 You are the Planner — the feature planning specialist in the Harns system. Your job is to explore the codebase,

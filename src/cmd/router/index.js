@@ -45,8 +45,9 @@ export async function runRouterCommand(argv) {
  * @param {string} userRequest
  * @param {Array<{base64: string, mimeType: string}>} images
  * @param {import('../../shared/workflow.js').UiAPI} uiAPI
+ * @param {import('@mariozechner/pi-coding-agent').SessionManager} [sessionManager]
  */
-export async function routerCmdOnMessage(userRequest, images, uiAPI) {
+export async function routerCmdOnMessage(userRequest, images, uiAPI, sessionManager) {
     await ensurePlansDir(CWD);
 
     uiAPI.appendSystemMessage("=== Phase A: Router (Triage) ===");
@@ -57,6 +58,7 @@ export async function routerCmdOnMessage(userRequest, images, uiAPI) {
         userRequest,
         images,
         uiAPI,
+        sessionManager,
     });
 
     const triage = extractTriageReport(routerMessages);
@@ -96,6 +98,15 @@ export async function routerCmdOnMessage(userRequest, images, uiAPI) {
         });
 
         uiAPI.appendSystemMessage("✅ Operator execution complete.");
+
+        if (sessionManager) {
+            sessionManager.appendCustomMessageEntry(
+                "system",
+                "Quick fix executed by operator.",
+                true,
+                `Quick fix executed by operator. Summary:\n${triage.summary}`,
+            );
+        }
         return;
     }
 
@@ -130,10 +141,26 @@ export async function routerCmdOnMessage(userRequest, images, uiAPI) {
             const action = await askPostApproval(result.planName, uiAPI);
             if (action === "proceed") {
                 await executePlan(result.planName, triage, uiAPI);
+                if (sessionManager) {
+                    sessionManager.appendCustomMessageEntry(
+                        "system",
+                        `FEATURE plan executed: plans/${result.planName}.md.`,
+                        true,
+                        `FEATURE plan executed: plans/${result.planName}.md. Summary: ${triage.summary}`,
+                    );
+                }
             } else {
                 uiAPI.appendSystemMessage(
                     `Plan saved. Resume later with: ${CLI_BIN} resume ${result.planName}`,
                 );
+                if (sessionManager) {
+                    sessionManager.appendCustomMessageEntry(
+                        "system",
+                        `FEATURE plan generated and saved: plans/${result.planName}.md.`,
+                        true,
+                        `FEATURE plan generated and saved: plans/${result.planName}.md. User decided to execute later.`,
+                    );
+                }
             }
         }
         return;
@@ -191,11 +218,26 @@ export async function routerCmdOnMessage(userRequest, images, uiAPI) {
                         uiAPI,
                     });
                     // After repair, we might want to execute again, but we'll let the user decide if it comes back to approve/proceed
+                } else if (sessionManager) {
+                    sessionManager.appendCustomMessageEntry(
+                        "system",
+                        `PROJECT plan executed: plans/${result.planName}.md.`,
+                        true,
+                        `PROJECT plan executed: plans/${result.planName}.md. Summary: ${triage.summary}`,
+                    );
                 }
             } else {
                 uiAPI.appendSystemMessage(
                     `Plan saved. Resume later with: ${CLI_BIN} resume ${result.planName}`,
                 );
+                if (sessionManager) {
+                    sessionManager.appendCustomMessageEntry(
+                        "system",
+                        `PROJECT plan generated and saved: plans/${result.planName}.md.`,
+                        true,
+                        `PROJECT plan generated and saved: plans/${result.planName}.md. User decided to execute later.`,
+                    );
+                }
             }
         }
     }

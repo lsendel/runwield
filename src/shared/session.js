@@ -339,10 +339,11 @@ export function abortActiveSession() {
  * @param {string} opts.userRequest - The user-facing request/instruction to send to the agent
  * @param {Array<{base64: string, mimeType: string}>} [opts.images]
  * @param {import('./workflow.js').UiAPI} [opts.uiAPI]
+ * @param {import('@mariozechner/pi-coding-agent').SessionManager} [opts.sessionManager]
  * @returns {Promise<import('@mariozechner/pi-agent-core').AgentMessage[]>}
  */
 export async function runAgentSession(
-    { agentName, toolNames, customTools, userRequest, images, uiAPI },
+    { agentName, toolNames, customTools, userRequest, images, uiAPI, sessionManager },
 ) {
     await ensureMnemosyneBinary();
     const resourceAgentDir = await resolveAgentDefsDir();
@@ -381,7 +382,7 @@ export async function runAgentSession(
         tools,
         customTools: customTools || [],
         resourceLoader: loader,
-        sessionManager: SessionManager.inMemory(),
+        sessionManager: sessionManager || SessionManager.inMemory(),
     });
 
     if (extensionsResult?.errors?.length) {

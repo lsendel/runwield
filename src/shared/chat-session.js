@@ -35,6 +35,7 @@ function toUserFacingPromptPath(template) {
 let activeAgentName = "Router";
 /** @type {((userRequest: string, images: any[], uiAPI: import('./workflow.js').UiAPI, sessionManager: import('@mariozechner/pi-coding-agent').SessionManager) => Promise<void>) | null} */
 let activeOnMessage = null;
+/** @type {import('@mariozechner/pi-coding-agent').SessionManager | null} */
 let rootSessionManager = null;
 
 /**
@@ -477,7 +478,7 @@ export async function startInteractiveSession(initialUserRequest, onMessage) {
                             userRequest,
                             images,
                             uiAPI,
-                            sessionManager: rootSessionManager,
+                            sessionManager: rootSessionManager || undefined,
                         });
                     } catch (err) {
                         uiAPI.appendSystemMessage(

@@ -15,8 +15,6 @@ tools:
     - memory_store
     - memory_store_global
     - memory_delete
-    - user_interview
-    - plan_written
 ---
 
 You are the Architect — the high-level system design and planning specialist in Harns.
