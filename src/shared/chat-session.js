@@ -23,7 +23,6 @@ import { listPlans } from "../plan-store.js";
 import { abortActiveSession, listPromptTemplates, runAgentSession } from "./session.js";
 import { listAvailableAgents } from "./agents.js";
 import { ensureMnemosyneBinary } from "./runtime-preflight.js";
-import { COMMAND_NAMES } from "../constants.js";
 
 const UI_PADDING = { x: 0, y: 0 };
 
@@ -337,8 +336,18 @@ export async function startInteractiveSession(initialUserRequest, onMessage) {
                 pastedImages.length = 0;
                 previewImages.clear();
 
-                if (!isExcluded) {
-                    uiAPI.appendUserMessage(userRequest);
+                // @ts-ignore
+                if (uiAPI.appendUserMessage && !isExcluded) {
+                    try {
+                        const msg = {
+                            role: "user",
+                            content: [{ type: "text", text: userRequest }],
+                        };
+                        /** @type {any} */ (rootSessionManager)?.addMessage(msg);
+                        uiAPI.appendUserMessage(userRequest);
+                    } catch (e) {
+                        // ignore
+                    }
                 }
 
                 try {
@@ -351,7 +360,9 @@ export async function startInteractiveSession(initialUserRequest, onMessage) {
                         });
                     }
 
-                    const toolBlock = isExcluded ? undefined : uiAPI.startToolExecution?.(activeToolId, `bash`, command);
+                    const toolBlock = isExcluded
+                        ? undefined
+                        : uiAPI.startToolExecution?.(activeToolId, `bash`, command);
 
                     const { exec } = await import("child_process");
 
@@ -404,6 +415,31 @@ export async function startInteractiveSession(initialUserRequest, onMessage) {
                             isError: code !== 0,
                             durationMs,
                         });
+                        try {
+                            const cmdMsg = {
+                                role: "assistant",
+                                content: [{
+                                    type: "tool_use",
+                                    id: activeToolId,
+                                    name: "bash",
+                                    input: { command },
+                                }],
+                            };
+                            /** @type {any} */ (rootSessionManager)?.addMessage(cmdMsg);
+
+                            const resultMsg = {
+                                role: "user",
+                                content: [{
+                                    type: "tool_result",
+                                    tool_use_id: activeToolId,
+                                    is_error: code !== 0,
+                                    content: outputBuffer,
+                                }],
+                            };
+                            /** @type {any} */ (rootSessionManager)?.addMessage(resultMsg);
+                        } catch (e) {
+                            // ignore session add failure
+                        }
                     }
                 } catch (err) {
                     uiAPI.appendSystemMessage(
@@ -438,6 +474,7 @@ export async function startInteractiveSession(initialUserRequest, onMessage) {
             // (The `agent` command is handled in the generic registry routing block below.)
 
             const { commandRegistry } = await import("../cmd/registry.js");
+            const { COMMAND_NAMES } = await import("../constants.js");
 
             // Look up the command in the registry handling both 'agents' (CLI mapped name) and 'agent' (slash alias)
             const registryKey = cmd === "agent" ? COMMAND_NAMES.AGENTS : cmd;
