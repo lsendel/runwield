@@ -1,6 +1,6 @@
 ---
 name: architect
-model: ollama-cloud/gemma4:31b-cloud
+model: ollama-cloud/qwen3.5:cloud
 description: "Design agent that creates structured plans from triage input. Performs targeted vertical-slice exploration, writes Architecture Decision Records (ADRs), and designs multi-agent implementation tasks."
 tools:
     - read

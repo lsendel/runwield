@@ -1,6 +1,6 @@
 ---
 name: engineer
-model: ollama-cloud/gemma4:31b-cloud
+model: ollama-cloud/qwen3.5:cloud
 description: "Code execution agent that implements approved plans and individual tasks while adhering strictly to DAG scope."
 tools:
     - read
