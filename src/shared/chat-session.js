@@ -24,6 +24,8 @@ import { cancelActivePlanReview } from "./submit-plan.js";
 import { ensureMnemosyneBinary } from "./runtime-preflight.js";
 import { commandRegistry } from "../cmd/registry.js";
 import { getDefaultModelAndProvider } from "./model-registry.js";
+import { clearUserModelOverride, getUserModelOverride, setUserModelOverride } from "./model-override.js";
+import { createDirectAgentHandler } from "./direct-agent.js";
 
 const UI_PADDING = { x: 0, y: 0 };
 
@@ -65,6 +67,7 @@ export function setActiveAgent(agentName, handler, uiAPI, agentModel) {
     }
     activeAgentName = agentName;
     currentAgentModel = agentModel || "";
+    clearUserModelOverride();
     activeOnMessage = handler;
     if (uiAPI) {
         activeUiAPI = uiAPI;
@@ -81,6 +84,8 @@ let currentAgentProvider = "";
 export function setActiveModel(model, provider) {
     currentAgentModel = model;
     if (provider) currentAgentProvider = provider;
+    setUserModelOverride(model, provider);
+    activeUiAPI?.requestRender();
 }
 
 /**
@@ -163,7 +168,19 @@ export async function startInteractiveSession(initialUserRequest, onMessage) {
         const defaults = getDefaultModelAndProvider();
         let { model, provider } = defaults;
 
-        if (currentAgentModel) {
+        const userOverride = getUserModelOverride();
+        if (userOverride) {
+            const slashIndex = userOverride.model.indexOf("/");
+            if (slashIndex > 0) {
+                provider = userOverride.model.slice(0, slashIndex);
+                model = userOverride.model.slice(slashIndex + 1);
+            } else {
+                model = userOverride.model;
+                if (userOverride.provider) {
+                    provider = userOverride.provider;
+                }
+            }
+        } else if (currentAgentModel) {
             const slashIndex = currentAgentModel.indexOf("/");
             if (slashIndex > 0) {
                 provider = currentAgentModel.slice(0, slashIndex);
@@ -245,9 +262,8 @@ export async function startInteractiveSession(initialUserRequest, onMessage) {
     const uiAPI = createUiApi(tui, messageList, runningTasksComponent);
 
     // Chat session specific UI overrides/extensions
-    uiAPI.setAgentInfo = (agentName, agentModel) => {
+    uiAPI.setAgentInfo = (agentName, _agentModel) => {
         activeAgentName = agentName;
-        currentAgentModel = agentModel;
         tui.requestRender();
     };
 
@@ -500,6 +516,8 @@ export async function startInteractiveSession(initialUserRequest, onMessage) {
                     images.forEach((img) => {
                         if (uiAPI.appendImage) uiAPI.appendImage(img.base64, img.mimeType);
                     });
+
+                    setActiveAgent(CHAT_PROMPT_AGENT_NAME, createDirectAgentHandler(CHAT_PROMPT_AGENT_NAME), uiAPI);
 
                     try {
                         await runAgentSession({

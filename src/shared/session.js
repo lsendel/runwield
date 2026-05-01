@@ -10,6 +10,8 @@ import { AGENT_DEFS_DIR, CORE_SYSTEM_PROMPT, CWD, PROMPT_TEMPLATES_DIR } from ".
 import mnemosyneExtension from "../extensions/mnemosyne/index.js";
 import { ensureMnemosyneBinary } from "./runtime-preflight.js";
 import { executeSwitchAgent, switchAgentTool, triggerAgent } from "../tools/switch-agent.js";
+import { getUserModelOverride } from "./model-override.js";
+import { getModelRegistry } from "./model-registry.js";
 
 const HOME_DIR = Deno.env.get("HOME") || "";
 const HOME_AGENT_DEFS_DIR = HOME_DIR ? join(HOME_DIR, ".hns", "agents") : null;
@@ -389,12 +391,20 @@ export async function runAgentSession(
     });
     await loader.reload();
 
+    let resolvedModel = null;
+    const userOverride = getUserModelOverride();
+    if (userOverride) {
+        const modelRegistry = getModelRegistry();
+        resolvedModel = modelRegistry.find(userOverride.provider, userOverride.model);
+    }
+
     const { session, extensionsResult } = await createAgentSession({
         cwd: CWD,
         tools,
         customTools: finalCustomTools,
         resourceLoader: loader,
         sessionManager: sessionManager || SessionManager.inMemory(),
+        ...(resolvedModel ? { model: resolvedModel } : {}),
     });
 
     if (extensionsResult?.errors?.length) {
