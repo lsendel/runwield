@@ -28,11 +28,8 @@ const UI_PADDING = { x: 0, y: 0 };
 
 const CHAT_PROMPT_AGENT_NAME = "operator";
 
-export const CHAT_BUILTIN_SLASH_NAMES = new Set(
-    Object.values(commandRegistry)
-        .filter((cmd) => cmd.isSlash)
-        .map((cmd) => cmd.name),
-);
+/** @type {Set<string>} */
+export let CHAT_BUILTIN_SLASH_NAMES = new Set();
 
 /**
  * @param {{ name: string, source: "local" | "home" | "bundled" }} template
@@ -93,6 +90,13 @@ export function getActiveUiAPI() {
  */
 export async function startInteractiveSession(initialUserRequest, onMessage) {
     const { SessionManager } = await import("@mariozechner/pi-coding-agent");
+
+    CHAT_BUILTIN_SLASH_NAMES = new Set(
+        Object.values(commandRegistry)
+            .filter((cmd) => cmd.isSlash)
+            .map((cmd) => cmd.name),
+    );
+
     rootSessionManager = SessionManager.inMemory();
     activeOnMessage = onMessage;
     await ensureMnemosyneBinary();
