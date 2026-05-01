@@ -10,6 +10,7 @@ export async function getModelCompletions(argumentPrefix) {
 
     await Promise.resolve();
 
+    const lowerPrefix = argumentPrefix.toLowerCase();
     return models
         .sort((a, b) => a.id.localeCompare(b.id))
         .map((m) => {
@@ -18,10 +19,15 @@ export async function getModelCompletions(argumentPrefix) {
                 value,
                 label: value,
                 description: m.name,
+                provider: m.provider,
+                id: m.id,
             };
         })
         .filter((item) =>
-            item.value.startsWith(argumentPrefix) ||
-            item.value.split("/")[1].startsWith(argumentPrefix)
+            item.value.toLowerCase().startsWith(lowerPrefix) ||
+            item.id.toLowerCase().startsWith(lowerPrefix) ||
+            item.provider.toLowerCase().startsWith(lowerPrefix) ||
+            // Handle OpenRouter-style IDs with slashes (e.g., google/gemini-flash)
+            item.id.toLowerCase().split("/").some((part) => part.startsWith(lowerPrefix))
         );
 }
