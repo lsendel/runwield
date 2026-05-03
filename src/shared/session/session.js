@@ -344,69 +344,16 @@ export function abortActiveSession() {
 }
 
 /**
- * Run a single agent invocation and wait for idle.
+ * Resolve the model to use for an agent invocation, based on the following priority:
+ * 1) Explicit model override passed to `runAgentSession`
+ * 2) Active model state (e.g. from a previous /model switch)
  *
- * @param {Object} opts
- * @param {string} opts.agentName
- * @param {string[]} [opts.toolNames] - Optional explicit tool override; defaults to agent frontmatter tools.
- * @param {import('@mariozechner/pi-coding-agent').ToolDefinition[]} [opts.customTools]
- * @param {string} [opts.modelOverride] - Optional explicit model override in provider/id format.
- * @param {string} opts.userRequest - The user-facing request/instruction to send to the agent
- * @param {Array<{base64: string, mimeType: string}>} [opts.images]
- * @param {import('../workflow/workflow.js').UiAPI} [opts.uiAPI]
- * @param {import('@mariozechner/pi-coding-agent').SessionManager} [opts.sessionManager]
- * @returns {Promise<import('@mariozechner/pi-agent-core').AgentMessage[]>}
+ * @param {string} modelOverride
+ * @param {AgentDef} agentDef
+ *
+ * @returns {null|string}
  */
-export async function runAgentSession(
-    { agentName, toolNames, customTools, modelOverride, userRequest, images, uiAPI, sessionManager },
-) {
-    await ensureMnemosyneBinary();
-    const resourceAgentDir = await resolveAgentDefsDir();
-    const agentDef = await loadAgentDef(agentName);
-
-    const customToolNames = (customTools || []).map((t) => t.name);
-    const selectedToolNames = toolNames || agentDef.tools;
-
-    const tools = [...new Set([...(selectedToolNames || []), ...customToolNames])];
-
-    const finalCustomTools = [...(customTools || [])];
-    // special handling for switch_agent because it requires uiAPI
-    if (tools.includes("switch_agent") && !finalCustomTools.find((t) => t.name === "switch_agent")) {
-        finalCustomTools.push({
-            ...switchAgentTool,
-            execute(_toolCallId, params, _signal, _onUpdate, context) {
-                return executeSwitchAgent(
-                    /** @type {{ agentName: string, reason: string }} */ (params),
-                    uiAPI,
-                    context,
-                    triggerAgent,
-                );
-            },
-        });
-    }
-
-    // Attempt to update the agent info in the UI footer.
-    if (uiAPI) {
-        if (uiAPI.setAgentInfo) {
-            const agentModelForUi = modelOverride || agentDef.model;
-            uiAPI.setAgentInfo(agentDef.name, agentModelForUi);
-        }
-    } else {
-        console.log(
-            `\n[Harns] Loading agent: ${agentDef.name} (model: ${modelOverride || agentDef.model})`,
-        );
-    }
-
-    const loader = new DefaultResourceLoader({
-        cwd: CWD,
-        agentDir: resourceAgentDir,
-        systemPromptOverride: () => agentDef.systemPrompt,
-        extensionFactories: [mnemosyneExtension],
-        additionalPromptTemplatePaths: getPromptTemplatePaths(),
-        noPromptTemplates: true,
-    });
-    await loader.reload();
-
+function resolveModel(modelOverride, agentDef) {
     let resolvedModel = null;
     const modelRegistry = getModelRegistry();
 
@@ -451,6 +398,67 @@ export async function runAgentSession(
         resolvedModel = found;
         break;
     }
+
+    return resolvedModel;
+}
+
+/**
+ * Run a single agent invocation and wait for idle.
+ *
+ * @param {Object} opts
+ * @param {string} opts.agentName
+ * @param {string[]} [opts.toolNames] - Optional explicit tool override; defaults to agent frontmatter tools.
+ * @param {import('@mariozechner/pi-coding-agent').ToolDefinition[]} [opts.customTools]
+ * @param {string} [opts.modelOverride] - Optional explicit model override in provider/id format.
+ * @param {string} opts.userRequest - The user-facing request/instruction to send to the agent
+ * @param {Array<{base64: string, mimeType: string}>} [opts.images]
+ * @param {import('../workflow/workflow.js').UiAPI} [opts.uiAPI]
+ * @param {import('@mariozechner/pi-coding-agent').SessionManager} [opts.sessionManager]
+ *
+ * @returns {Promise<import('@mariozechner/pi-agent-core').AgentMessage[]>}
+ */
+export async function runAgentSession(
+    { agentName, toolNames, customTools, modelOverride, userRequest, images, uiAPI, sessionManager },
+) {
+    await ensureMnemosyneBinary();
+    const resourceAgentDir = await resolveAgentDefsDir();
+    const agentDef = await loadAgentDef(agentName);
+
+    const customToolNames = (customTools || []).map((t) => t.name);
+    const selectedToolNames = toolNames || agentDef.tools;
+    const tools = [...new Set([...(selectedToolNames || []), ...customToolNames])];
+    const finalCustomTools = [...(customTools || [])];
+
+    // special handling for switch_agent because it requires uiAPI
+    if (tools.includes("switch_agent") && !finalCustomTools.find((t) => t.name === "switch_agent")) {
+        finalCustomTools.push({
+            ...switchAgentTool,
+            execute(_toolCallId, params, _signal, _onUpdate, context) {
+                return executeSwitchAgent(
+                    /** @type {{ agentName: string, reason: string }} */ (params),
+                    uiAPI,
+                    context,
+                    triggerAgent,
+                );
+            },
+        });
+    }
+
+    // Update the agent info in the UI footer.
+    const agentModelForUi = modelOverride || agentDef.model;
+    uiAPI.setAgentInfo(agentDef.name, agentModelForUi);
+
+    const loader = new DefaultResourceLoader({
+        cwd: CWD,
+        agentDir: resourceAgentDir,
+        systemPromptOverride: () => agentDef.systemPrompt,
+        extensionFactories: [mnemosyneExtension],
+        additionalPromptTemplatePaths: getPromptTemplatePaths(),
+        noPromptTemplates: true,
+    });
+    await loader.reload();
+
+    let resolvedModel = resolveModel(modelOverride, agentDef);
 
     const { session, extensionsResult } = await createAgentSession({
         cwd: CWD,

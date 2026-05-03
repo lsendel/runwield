@@ -6,7 +6,7 @@
 import { parseArgs } from "@std/cli/parse-args";
 import { printCommandHelp } from "../help/index.js";
 import { setActiveAgent, startInteractiveSession } from "../../shared/chat-session.js";
-import { CLI_BIN, CWD } from "../../constants.js";
+import { CLI_BIN, CWD, COMMAND_NAMES } from "../../constants.js";
 import { ensurePlansDir } from "../../plan-store.js";
 import { triageReportTool } from "../../tools/triage-report.js";
 import { planWrittenTool } from "../../tools/plan-written.js";
@@ -23,18 +23,11 @@ import { buildRepairPrompt } from "../command-helpers.js";
  * @param {string[]} argv
  */
 export async function runRouterCommand(argv) {
-    const parsedArgs = parseArgs(argv, {
-        boolean: ["help"],
-        alias: { h: "help" },
-        stopEarly: true,
-    });
-
-    if (parsedArgs.help) {
-        printCommandHelp("router");
-        return;
-    }
-
     const userRequest = argv.join(" ").trim();
+
+    if (userRequest === 'help') {
+        return printCommandHelp(COMMAND_NAMES.ROUTER);
+    }
 
     // Launch the interactive loop with the router as the default handler
     // The loop inside startInteractiveSession will call setActiveAgent
@@ -86,7 +79,7 @@ export async function routerCmdOnMessage(userRequest, images, uiAPI, sessionMana
 
     if (triage.classification === "QUICK_FIX") {
         uiAPI.appendSystemMessage("QUICK_FIX detected. Handing off to Operator...");
-        uiAPI.appendSystemMessage("=== Phase B1: Operator (Execute) ===");
+        uiAPI.appendSystemMessage("=== Phase B: Operator (Execute) ===");
 
         const operatorRequest = [
             "## User Request",
