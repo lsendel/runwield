@@ -4,7 +4,7 @@
  */
 
 import { parseArgs } from "@std/cli/parse-args";
-import { printCommandHelp } from "../../shared/help-text.js";
+import { printCommandHelp } from "../help/index.js";
 import { setActiveAgent, startInteractiveSession } from "../../shared/chat-session.js";
 import { CLI_BIN, CWD } from "../../constants.js";
 import { ensurePlansDir } from "../../plan-store.js";

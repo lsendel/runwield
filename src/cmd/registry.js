@@ -3,16 +3,19 @@
  * Central command handler registry.
  */
 
-import { COMMAND_NAMES } from "../constants.js";
-import { runHelpCommand } from "./help/index.js";
+import { CLI_BIN, COMMAND_NAMES, DEV_CLI_RUN } from "../constants.js";
 import { runPlansCommand } from "./plans/index.js";
 import { runRouterCommand } from "./router/index.js";
 import { runSleepCommand } from "./sleep/index.js";
+import { runHelpCommand } from "./help/index.js";
 import { getAgentCompletions, runAgentsCommand } from "./agents/index.js";
 import { getModelCompletions, runModelsCommand } from "./models/index.js";
 import { runQuitCommand } from "./quit/index.js";
 import { getResumeCompletions, runResumeCommand } from "./resume/index.js";
 import { runExportCommand } from "./export/index.js";
+
+/** @param {...string} parts */
+const bin = (...parts) => [CLI_BIN, ...parts].join(" ");
 
 /**
  * @typedef {import('./types.js').CommandContext} CommandContext
@@ -25,8 +28,12 @@ import { runExportCommand } from "./export/index.js";
 /**
  * @typedef {Object} CommandDefinition
  * @property {string} name
+ * @property {string[]} [aliases]
  * @property {string} displayName
  * @property {string} description
+ * @property {string} summary
+ * @property {string[]} usage
+ * @property {string[]} [notes]
  * @property {CommandHandler} execute
  * @property {boolean} isSlash
  * @property {boolean} isCli
@@ -39,14 +46,36 @@ export const commandRegistry = {
         name: COMMAND_NAMES.ROUTER,
         displayName: "Router",
         description: "Triage the current request (default)",
+        summary: "Route a request through triage and execution/planning flow (default command).",
+        usage: [
+            `${bin('"<user request>"')}`,
+            `${bin('router "<user request>"')}`,
+            `${bin("router --help")}`,
+        ],
+        notes: [
+            "This is the default command when no explicit command is provided.",
+            `Source-run fallback: ${DEV_CLI_RUN} "<user request>"`,
+        ],
         execute: runRouterCommand,
         isSlash: false,
         isCli: true,
     },
     [COMMAND_NAMES.AGENT]: {
         name: COMMAND_NAMES.AGENT,
+        aliases: ["agents"],
         displayName: "Agent",
         description: "Switch active agent",
+        summary: "List available agents or talk directly to one (--agent shorthand).",
+        usage: [
+            `${bin("--agent")}                            List available agents`,
+            `${bin("--agent <name>")}                     Talk directly to an agent`,
+            `${bin('--agent <name> "<user request>"')}    Start with a prompt`,
+            `${bin("agent")}                              Same as --agent`,
+        ],
+        notes: [
+            "Bypasses the router triage flow — sends prompts directly to the agent.",
+            "Use /agent inside the TUI to switch agents at any time.",
+        ],
         execute: runAgentsCommand,
         isSlash: true,
         isCli: true,
@@ -54,8 +83,18 @@ export const commandRegistry = {
     },
     [COMMAND_NAMES.MODEL]: {
         name: COMMAND_NAMES.MODEL,
+        aliases: ["models"],
         displayName: "Model",
         description: "Switch AI model",
+        summary: "Switch active AI model via slash command or CLI.",
+        usage: [
+            `${bin("model <provider>/<model_id>")}`,
+            `${bin("models <provider>/<model_id>")}`,
+        ],
+        notes: [
+            "Switch the active AI model.",
+            "Inside the interactive session, use '/model <tab>' for autocomplete.",
+        ],
         execute: runModelsCommand,
         isSlash: true,
         isCli: true,
@@ -65,6 +104,15 @@ export const commandRegistry = {
         name: COMMAND_NAMES.RESUME,
         displayName: "Resume",
         description: "Resume a saved plan",
+        summary: "Resume work from a saved plan by name or file path.",
+        usage: [
+            `${bin("resume <plan-name>")}`,
+            `${bin("resume plans/<plan>.md")}`,
+            `${bin("resume --help")}`,
+        ],
+        notes: [
+            "If the plan is approved, you can proceed, re-open review, or inspect details.",
+        ],
         execute: runResumeCommand,
         isSlash: true,
         isCli: true,
@@ -74,6 +122,16 @@ export const commandRegistry = {
         name: COMMAND_NAMES.EXPORT,
         displayName: "Export",
         description: "Export current session (HTML default, or specify .html/.jsonl path)",
+        summary: "Export current interactive session to HTML (default) or JSONL.",
+        usage: [
+            "/export",
+            "/export output.html",
+            "/export output.jsonl",
+        ],
+        notes: [
+            "Slash command only (interactive session).",
+            "Default output path is session-<iso-datetime>.html in the current working directory.",
+        ],
         execute: runExportCommand,
         isSlash: true,
         isCli: false,
@@ -82,6 +140,14 @@ export const commandRegistry = {
         name: COMMAND_NAMES.PLANS,
         displayName: "Plans",
         description: "List or manage plans",
+        summary: "List saved plans.",
+        usage: [
+            `${bin("plans")}`,
+            `${bin("plans --help")}`,
+        ],
+        notes: [
+            "Shows status, classification, complexity, summary, and creation time.",
+        ],
         execute: runPlansCommand,
         isSlash: false,
         isCli: true,
@@ -90,6 +156,16 @@ export const commandRegistry = {
         name: COMMAND_NAMES.SLEEP,
         displayName: "Sleep",
         description: "Let the model consolidate context",
+        summary: "Run /sleep prompt template (via operator) for memory optimization/cleanup.",
+        usage: [
+            `${bin("sleep")}`,
+            `${bin("sleep --help")}`,
+        ],
+        notes: [
+            "Requires mnemosyne binary in PATH.",
+            "Invokes bundled /sleep prompt template via operator.",
+            "You can also run /sleep directly inside the interactive TUI.",
+        ],
         execute: runSleepCommand,
         isSlash: true,
         isCli: true,
@@ -98,6 +174,13 @@ export const commandRegistry = {
         name: COMMAND_NAMES.HELP,
         displayName: "Help",
         description: "Show help information",
+        summary: "Show global help or help for a specific command.",
+        usage: [
+            `${bin("--help")}`,
+            `${bin("help")}`,
+            `${bin("help <command>")}`,
+        ],
+        notes: [],
         execute: runHelpCommand,
         isSlash: false,
         isCli: true,
@@ -106,6 +189,9 @@ export const commandRegistry = {
         name: COMMAND_NAMES.QUIT,
         displayName: "Quit",
         description: "Exit the application",
+        summary: "Exit the interactive session.",
+        usage: ["/quit"],
+        notes: [],
         execute: runQuitCommand,
         isSlash: true,
         isCli: false,
@@ -114,8 +200,29 @@ export const commandRegistry = {
         name: COMMAND_NAMES.EXIT,
         displayName: "Exit",
         description: "Exit the application",
+        summary: "Alias for /quit.",
+        usage: ["/exit"],
+        notes: [],
         execute: runQuitCommand,
         isSlash: true,
         isCli: false,
     },
 };
+
+/**
+ * @param {string | undefined} commandName
+ * @returns {CommandDefinition | undefined}
+ */
+export function getCommandDefinition(commandName) {
+    if (!commandName) return undefined;
+    const name = String(commandName);
+    if (commandRegistry[name]) return commandRegistry[name];
+    return Object.values(commandRegistry).find((command) => command.aliases?.includes(name));
+}
+
+/**
+ * @returns {CommandDefinition[]}
+ */
+export function getCliCommandDefinitions() {
+    return Object.values(commandRegistry).filter((command) => command.isCli);
+}

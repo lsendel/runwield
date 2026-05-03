@@ -4,7 +4,7 @@
  */
 
 import { parseArgs } from "@std/cli/parse-args";
-import { printCommandHelp } from "../../shared/help-text.js";
+import { printCommandHelp } from "../help/index.js";
 import { setActiveAgent, startInteractiveSession } from "../../shared/chat-session.js";
 import { listAvailableAgents } from "../../shared/agents.js";
 import { createDirectAgentHandler } from "../../shared/direct-agent.js";
@@ -33,7 +33,7 @@ export async function runAgentsCommand(argv, options = {}) {
     });
 
     if (parsedArgs.help) {
-        printCommandHelp("agents");
+        printCommandHelp("agent");
         return;
     }
 

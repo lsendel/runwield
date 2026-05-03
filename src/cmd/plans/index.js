@@ -6,7 +6,7 @@
 import { parseArgs } from "@std/cli/parse-args";
 import { CWD } from "../../constants.js";
 import { listPlans } from "../../plan-store.js";
-import { printCommandHelp } from "../../shared/help-text.js";
+import { printCommandHelp } from "../help/index.js";
 
 /**
  * Handle `plans` command.

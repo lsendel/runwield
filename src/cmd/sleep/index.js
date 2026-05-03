@@ -6,7 +6,7 @@
 import { parseArgs } from "@std/cli/parse-args";
 import { COMMAND_NAMES } from "../../constants.js";
 import { runAgentSession } from "../../shared/session/session.js";
-import { printCommandHelp } from "../../shared/help-text.js";
+import { printCommandHelp } from "../help/index.js";
 import { ensureMnemosyneBinary } from "../../shared/runtime-preflight.js";
 
 /**

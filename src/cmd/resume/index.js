@@ -10,7 +10,7 @@ import { submitPlanForReview } from "../../shared/workflow/submit-plan.js";
 import { planWrittenTool } from "../../tools/plan-written.js";
 import { createUserInterviewTool } from "../../tools/user-interview.js";
 import { askPostApproval, executePlan, reviewLoop } from "../../shared/workflow/workflow.js";
-import { printCommandHelp } from "../../shared/help-text.js";
+import { printCommandHelp } from "../help/index.js";
 import { setActiveAgent, startInteractiveSession } from "../../shared/chat-session.js";
 import { buildRepairPrompt, resetTuiState } from "../command-helpers.js";
 export { getResumeCompletions } from "./getArgumentCompletions.js";

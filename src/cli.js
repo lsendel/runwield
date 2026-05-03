@@ -17,7 +17,7 @@
 import { parseArgs } from "@std/cli/parse-args";
 import { COMMAND_NAMES } from "./constants.js";
 import { commandRegistry } from "./cmd/registry.js";
-import { printGlobalHelp } from "./shared/help-text.js";
+import { printGlobalHelp } from "./cmd/help/index.js";
 
 /**
  * Main CLI entrypoint.
