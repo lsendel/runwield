@@ -4,6 +4,7 @@
  */
 
 import { join } from "@std/path";
+import { exportRootSessionToHtml, exportRootSessionToJsonl } from "../../shared/session/root-session.js";
 
 /**
  * @param {string} value
@@ -20,29 +21,6 @@ function sanitizeFilenameSegment(value) {
 function buildDefaultExportPath(sessionStartIso) {
     const safeIso = sanitizeFilenameSegment(sessionStartIso).replace(/\.\d{3}Z$/, "");
     return join(Deno.cwd(), `session-${safeIso}.html`);
-}
-
-/**
- * @param {string} text
- * @returns {string | undefined}
- */
-function parseOptionalPathArg(text) {
-    if (text === "/export") return undefined;
-    if (!text.startsWith("/export ")) return undefined;
-
-    const argsString = text.slice("/export".length + 1).trimStart();
-    if (!argsString) return undefined;
-
-    const firstChar = argsString[0];
-    if (firstChar === '"' || firstChar === "'") {
-        const closingQuoteIndex = argsString.indexOf(firstChar, 1);
-        if (closingQuoteIndex < 0) return undefined;
-        return argsString.slice(1, closingQuoteIndex);
-    }
-
-    const firstWhitespaceIndex = argsString.search(/\s/);
-    if (firstWhitespaceIndex < 0) return argsString;
-    return argsString.slice(0, firstWhitespaceIndex);
 }
 
 /**
@@ -64,10 +42,10 @@ export async function runExportCommand(argv, options = {}) {
 
     try {
         if (outputPath.toLowerCase().endsWith(".jsonl")) {
-            const filePath = sessionManager.exportToJsonl(outputPath);
+            const filePath = exportRootSessionToJsonl(sessionManager, outputPath);
             uiAPI.appendSystemMessage(`Session exported to: ${filePath}`);
         } else {
-            const filePath = await sessionManager.exportToHtml(outputPath);
+            const filePath = await exportRootSessionToHtml(sessionManager, outputPath);
             uiAPI.appendSystemMessage(`Session exported to: ${filePath}`);
         }
     } catch (error) {

@@ -20,14 +20,40 @@ import { commandRegistry } from "./cmd/registry.js";
 import { printGlobalHelp } from "./cmd/help/index.js";
 
 /**
+ * Remove leading global flags from argv so command/default handlers receive clean positional args.
+ *
+ * @param {string[]} argv
+ * @returns {string[]}
+ */
+function stripLeadingGlobalFlags(argv) {
+    const stripped = [];
+    let stillInGlobalPrefix = true;
+
+    for (const arg of argv) {
+        if (stillInGlobalPrefix && (arg === "--help" || arg === "-h" || arg === "--continue" || arg === "-c")) {
+            continue;
+        }
+        stillInGlobalPrefix = false;
+        stripped.push(arg);
+    }
+
+    return stripped;
+}
+
+/**
  * Main CLI entrypoint.
  */
 async function main() {
     const args = Deno.args;
 
-    const parsed = parseArgs(args, { stopEarly: true });
+    const parsed = parseArgs(args, {
+        stopEarly: true,
+        boolean: ["help", "continue"],
+        alias: { h: "help", c: "continue" },
+    });
 
-    const [firstPositional] = parsed._;
+    const normalizedArgs = stripLeadingGlobalFlags(args);
+    const [firstPositional] = parsed._.map(String);
 
     // Explicit command dispatch: `cli.js <command> ...`
     if (commandRegistry[firstPositional]) {
@@ -37,7 +63,8 @@ async function main() {
             );
             Deno.exit(1);
         }
-        await commandRegistry[firstPositional].execute(args.slice(1));
+        const [, ...commandArgs] = normalizedArgs;
+        await commandRegistry[firstPositional].execute(commandArgs);
         return;
     }
 
@@ -49,7 +76,9 @@ async function main() {
 
     // Default command route: `cli.js "<user request>"` => router
     // this is the same as cli.js --agent router "request"
-    await commandRegistry[COMMAND_NAMES.ROUTER].execute(args);
+    await commandRegistry[COMMAND_NAMES.ROUTER].execute(normalizedArgs, {
+        sessionStartMode: parsed.continue ? "continue" : "new",
+    });
 }
 
 main().catch((err) => {

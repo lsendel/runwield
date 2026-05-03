@@ -14,12 +14,16 @@ export function printGlobalHelp() {
     console.log("Harns — Plan-by-Default Coding Harness\n");
     console.log("Usage:");
     console.log(`  ${CLI_BIN} \"<user request>\"`);
+    console.log(`  ${CLI_BIN} --continue \"<optional message>\"`);
     console.log(`  ${CLI_BIN} <command> [args]\n`);
 
     console.log("Commands:");
     for (const command of getCliCommandDefinitions()) {
         console.log(`  ${command.name.padEnd(8)} ${command.summary}`);
     }
+
+    console.log("\nGlobal flags:");
+    console.log("  --continue, -c   Continue newest saved session (default startup route only)");
 
     console.log("\nHelp:");
     console.log(`  ${CLI_BIN} --help`);

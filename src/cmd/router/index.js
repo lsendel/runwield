@@ -20,8 +20,9 @@ import { buildRepairPrompt } from "../command-helpers.js";
  * Handle router/default command.
  *
  * @param {string[]} argv
+ * @param {import('../registry.js').CommandContext} [options]
  */
-export async function runRouterCommand(argv) {
+export async function runRouterCommand(argv, options = {}) {
     const userRequest = argv.join(" ").trim();
 
     if (userRequest === "help") {
@@ -31,7 +32,9 @@ export async function runRouterCommand(argv) {
 
     // Launch the interactive loop with the router as the default handler
     // The loop inside startInteractiveSession will call setActiveAgent
-    await startInteractiveSession(userRequest, routerCmdOnMessage);
+    await startInteractiveSession(userRequest, routerCmdOnMessage, {
+        sessionStartMode: options.sessionStartMode || "new",
+    });
 }
 
 /**

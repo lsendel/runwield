@@ -23,7 +23,7 @@
         "ci": "deno task check && deno lint && deno fmt --check && deno task test",
         "cli": "deno run -A src/cli.js",
         "test": "deno test -A",
-        "check": "deno check --doc **/*.js",
+        "check": "deno check --doc src/**/*.js",
         "compile": "deno compile -A --include src/agent-definitions --include src/prompt-templates --output ./bin/hns src/cli.js"
     },
     "fmt": {
@@ -32,6 +32,7 @@
     },
     "exclude": [
         "node_modules",
-        ".idea"
+        ".idea",
+        ".history"
     ]
 }

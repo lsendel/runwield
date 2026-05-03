@@ -29,6 +29,7 @@ const bin = (...parts) => [CLI_BIN, ...parts].join(" ");
  * @property {string} [sessionStartedAt]
  * @property {import('../shared/ui/types.js').TuiAPI} [tui]
  * @property {(data: string) => void | Promise<void>} [originalHandleInput]
+ * @property {"new" | "continue"} [sessionStartMode]
  */
 
 /**

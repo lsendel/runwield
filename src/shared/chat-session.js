@@ -38,6 +38,7 @@ import {
 } from "./session/session-state.js";
 import { parseProviderModel } from "./models/model-validation.js";
 import { createDirectAgentHandler } from "./direct-agent.js";
+import { createRootSessionManager } from "./session/root-session.js";
 
 const UI_PADDING = { x: 0, y: 0 };
 
@@ -137,21 +138,158 @@ export function resolveTemplateModel(templateModel, modelRegistry) {
 }
 
 /**
+ * @param {{ type?: string, text?: string, [key: string]: unknown }} block
+ * @returns {string}
+ */
+function blockToDisplayText(block) {
+    if (!block || typeof block !== "object") return "";
+
+    if (block.type === "text") {
+        return typeof block.text === "string" ? block.text : "";
+    }
+
+    if (block.type === "tool_result") {
+        const content = block.content;
+        if (typeof content === "string") {
+            return content;
+        }
+        if (Array.isArray(content)) {
+            return content
+                .map((part) => {
+                    if (part && typeof part === "object" && part.type === "text" && typeof part.text === "string") {
+                        return part.text;
+                    }
+                    return "";
+                })
+                .filter(Boolean)
+                .join("\n");
+        }
+        return "";
+    }
+
+    // Non-textual blocks are rendered separately (e.g. tool blocks, images) or ignored.
+    return "";
+}
+
+/**
+ * @param {unknown} message
+ * @returns {string}
+ */
+function messageToDisplayText(message) {
+    if (!message || typeof message !== "object") return "";
+
+    const content = /** @type {{ content?: unknown }} */ (message).content;
+    if (typeof content === "string") return content;
+    if (!Array.isArray(content)) return "";
+
+    return content
+        .map((block) =>
+            blockToDisplayText(/** @type {{ type?: string, text?: string, [key: string]: unknown }} */ (block))
+        )
+        .filter(Boolean)
+        .join("\n\n")
+        .trim();
+}
+
+/**
+ * @param {import('@mariozechner/pi-coding-agent').SessionManager} sessionManager
+ * @param {import('./ui/types.js').UiAPI} uiAPI
+ */
+function restorePersistedMessagesToUi(sessionManager, uiAPI) {
+    const context = sessionManager.buildSessionContext();
+    const messages = Array.isArray(context?.messages) ? context.messages : [];
+    if (messages.length === 0) return;
+
+    for (const message of messages) {
+        if (!message || typeof message !== "object") continue;
+
+        const role = /** @type {{ role?: string }} */ (message).role;
+
+        if (role === "custom") {
+            const display = /** @type {{ display?: boolean }} */ (message).display;
+            if (display === false) continue;
+            const text = messageToDisplayText(message);
+            if (text) uiAPI.appendSystemMessage(text);
+            continue;
+        }
+
+        if (role === "assistant") {
+            const content = /** @type {{ content?: unknown }} */ (message).content;
+            const text = messageToDisplayText(message);
+
+            if (text) {
+                const appender = uiAPI.appendAgentMessageStart(getActiveAgentName() || "assistant");
+                appender.appendText(text);
+            }
+
+            if (Array.isArray(content)) {
+                for (const block of content) {
+                    if (
+                        block && typeof block === "object" &&
+                        /** @type {{ type?: string }} */ (block).type === "tool_use"
+                    ) {
+                        const toolName = typeof /** @type {{ name?: unknown }} */ (block).name === "string"
+                            ? /** @type {{ name: string }} */ (block).name
+                            : "tool";
+                        const toolId = typeof /** @type {{ id?: unknown }} */ (block).id === "string"
+                            ? /** @type {{ id: string }} */ (block).id
+                            : `restored-tool-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+                        const toolBlock = uiAPI.startToolExecution?.(toolId, toolName, "");
+                        toolBlock?.endExecution(false, 0);
+                    }
+                }
+            }
+            continue;
+        }
+
+        if (role === "user") {
+            const text = messageToDisplayText(message);
+            if (text) {
+                uiAPI.appendUserMessage?.(text);
+            }
+
+            const content = /** @type {{ content?: unknown }} */ (message).content;
+            if (Array.isArray(content)) {
+                for (const block of content) {
+                    if (
+                        block && typeof block === "object" &&
+                        /** @type {{ type?: string }} */ (block).type === "image" &&
+                        typeof /** @type {{ data?: unknown }} */ (block).data === "string" &&
+                        typeof /** @type {{ mimeType?: unknown }} */ (block).mimeType === "string"
+                    ) {
+                        uiAPI.appendImage?.(
+                            /** @type {{ data: string }} */ (block).data,
+                            /** @type {{ mimeType: string }} */ (block).mimeType,
+                        );
+                    }
+                }
+            }
+            continue;
+        }
+
+        const fallbackText = messageToDisplayText(message);
+        if (fallbackText) {
+            uiAPI.appendSystemMessage(fallbackText);
+        }
+    }
+}
+
+/**
  * Starts the interactive TUI loop.
  * @param {string | null} initialUserRequest
  * @param {import('./session/types.js').AgentMessageHandler | null} onMessage - Handler for user submissions
+ * @param {{ sessionStartMode?: "new" | "continue" }} [options]
  */
-export async function startInteractiveSession(initialUserRequest, onMessage) {
-    const { SessionManager } = await import("@mariozechner/pi-coding-agent");
-
+export async function startInteractiveSession(initialUserRequest, onMessage, options = {}) {
     CHAT_BUILTIN_SLASH_NAMES = new Set(
         Object.values(commandRegistry)
             .filter((command) => command.isSlash)
             .map((command) => command.name),
     );
 
-    setRootSessionManager(SessionManager.inMemory());
-    const sessionStartedAt = new Date().toISOString();
+    const rootSessionManager = await createRootSessionManager(options.sessionStartMode || "new", Deno.cwd());
+    setRootSessionManager(rootSessionManager);
+    const sessionStartedAt = rootSessionManager.getHeader()?.timestamp || new Date().toISOString();
     setActiveOnMessage(onMessage);
     await ensureMnemosyneBinary();
     const tui = initTUI();
@@ -244,8 +382,8 @@ export async function startInteractiveSession(initialUserRequest, onMessage) {
         /** @param {number} w */
         render: (w) => {
             const rightMargin = 2;
-            const rendered = container.render(Math.max(10, w - rightMargin));
-            return rendered;
+
+            return container.render(Math.max(10, w - rightMargin));
         },
     };
 
@@ -263,12 +401,11 @@ export async function startInteractiveSession(initialUserRequest, onMessage) {
         [
             ...Array.from(CHAT_BUILTIN_SLASH_NAMES).map((name) => {
                 /** @type {import('@mariozechner/pi-tui').SlashCommand} */
-                const command = {
+                return {
                     name,
                     description: commandRegistry[name].description,
                     getArgumentCompletions: commandRegistry[name].getArgumentCompletions,
                 };
-                return command;
             }),
             ...invokablePromptTemplates.map((template) => ({
                 name: template.name,
@@ -562,7 +699,7 @@ export async function startInteractiveSession(initialUserRequest, onMessage) {
                     });
 
                     const templateModelValue = resolvedTemplateModel?.ok
-                        ? `${resolvedTemplateModel.provider}/${resolvedTemplateModel.id}`
+                        ? `${resolvedTemplateModel?.provider}/${resolvedTemplateModel?.id}`
                         : undefined;
 
                     setActiveAgent(
@@ -733,6 +870,10 @@ export async function startInteractiveSession(initialUserRequest, onMessage) {
             true,
         );
     }
+
+    // Hydrate TUI from persisted root-session history (e.g. --continue)
+    // Keep this after startup system notices so those appear first.
+    restorePersistedMessagesToUi(rootSessionManager, uiAPI);
 
     // Trigger initial user request
     if (initialUserRequest) {
