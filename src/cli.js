@@ -25,29 +25,12 @@ import { printGlobalHelp } from "./shared/help-text.js";
 async function main() {
     const args = Deno.args;
 
-    const parsed = parseArgs(args, {
-        boolean: ["help"],
-        string: ["agent"],
-        alias: { h: "help", a: "agent" },
-        stopEarly: true,
-    });
+    const parsed = parseArgs(args, { stopEarly: true });
 
-    const [firstPositional] = parsed._.map(String);
-
-    // Explicit help command: `cli.js help [command]`
-    if (firstPositional === COMMAND_NAMES.HELP) {
-        await commandRegistry[COMMAND_NAMES.HELP].execute(args.slice(1));
-        return;
-    }
-
-    // Global help flag with no command token: `cli.js --help`
-    if (parsed.help && !firstPositional) {
-        printGlobalHelp();
-        return;
-    }
+    const [firstPositional] = parsed._;
 
     // Explicit command dispatch: `cli.js <command> ...`
-    if (firstPositional && commandRegistry[firstPositional]) {
+    if (commandRegistry[firstPositional]) {
         if (!commandRegistry[firstPositional].isCli) {
             console.error(
                 `[Harns] Command '${firstPositional}' is only available inside interactive chat as /${firstPositional}.`,
@@ -58,13 +41,14 @@ async function main() {
         return;
     }
 
-    // Any other global --help form falls back to global help.
+    // Help flag: `cli.js --help` or `cli.js -h`
     if (parsed.help) {
         printGlobalHelp();
         return;
     }
 
     // Default command route: `cli.js "<user request>"` => router
+    // this is the same as cli.js --agent router "request"
     await commandRegistry[COMMAND_NAMES.ROUTER].execute(args);
 }
 

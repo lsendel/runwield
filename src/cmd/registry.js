@@ -108,7 +108,7 @@ export const commandRegistry = {
         description: "Exit the application",
         execute: runQuitCommand,
         isSlash: true,
-        isCli: true,
+        isCli: false,
     },
     [COMMAND_NAMES.EXIT]: {
         name: COMMAND_NAMES.EXIT,
@@ -116,6 +116,6 @@ export const commandRegistry = {
         description: "Exit the application",
         execute: runQuitCommand,
         isSlash: true,
-        isCli: true,
+        isCli: false,
     },
 };
