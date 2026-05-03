@@ -1,7 +1,7 @@
 import { assertEquals, assertMatch } from "@std/assert";
-import { executeSwitchAgent, switchAgentTool } from "./switch-agent.js";
-import { getActiveModel, setActiveAgent } from "../shared/chat-session.js";
-import { loadAgentDef } from "../shared/session/session.js";
+import { executeSwitchAgent, switchAgentTool } from "../switch-agent.js";
+import { getActiveModel, setActiveAgent } from "../../shared/chat-session.js";
+import { loadAgentDef } from "../../shared/session/session.js";
 
 /**
  * @param {{ execute: unknown }} tool
@@ -41,7 +41,7 @@ Deno.test("switchAgentTool returns error when no UI API is active", async () => 
 
 Deno.test("switchAgentTool handles router switch with mock UI API", async () => {
     let systemMessage = "";
-    /** @type {import('../shared/ui/types.js').UiAPI} */
+    /** @type {import('../../shared/ui/types.js').UiAPI} */
     const mockUiAPI = {
         appendSystemMessage: (/** @type {string} */ msg) => {
             systemMessage = msg;
@@ -71,7 +71,7 @@ Deno.test("switchAgentTool handles router switch with mock UI API", async () => 
 });
 
 Deno.test("switchAgentTool updates active model when switching to agent with declared model", async () => {
-    /** @type {import('../shared/ui/types.js').UiAPI} */
+    /** @type {import('../../shared/ui/types.js').UiAPI} */
     const mockUiAPI = {
         appendSystemMessage: () => {},
         requestRender: () => {},
@@ -99,7 +99,7 @@ Deno.test("executeSwitchAgent succeeds when given a direct uiAPI without global 
     let triggeredAgent = null;
     /** @type {string | null} */
     let triggeredReason = null;
-    /** @type {import('../shared/ui/types.js').UiAPI} */
+    /** @type {import('../../shared/ui/types.js').UiAPI} */
     const mockUiAPI = {
         appendSystemMessage: (/** @type {string} */ msg) => {
             systemMessage = msg;

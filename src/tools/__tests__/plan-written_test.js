@@ -1,5 +1,5 @@
 import { assertEquals, assertMatch } from "@std/assert";
-import { planWrittenTool } from "./plan-written.js";
+import { planWrittenTool } from "../plan-written.js";
 
 /**
  * @param {{ execute: unknown }} tool

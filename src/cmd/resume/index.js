@@ -12,7 +12,7 @@ import { createUserInterviewTool } from "../../tools/user-interview.js";
 import { askPostApproval, executePlan, reviewLoop } from "../../shared/workflow/workflow.js";
 import { printCommandHelp } from "../../shared/help-text.js";
 import { setActiveAgent, startInteractiveSession } from "../../shared/chat-session.js";
-import { buildRepairPrompt, resetTuiState } from "../../cmd/command-helpers.js";
+import { buildRepairPrompt, resetTuiState } from "../command-helpers.js";
 export { getResumeCompletions } from "./getArgumentCompletions.js";
 
 /**

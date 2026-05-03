@@ -43,11 +43,12 @@ export const COMPLEXITIES = ["LOW", "MEDIUM", "HIGH"];
 export const PLANS_DIR_NAME = "plans";
 
 /** Known CLI command names. */
-/** @type {Readonly<{ROUTER: string, AGENT: string, MODEL: string, RESUME: string, PLANS: string, SLEEP: string, HELP: string, QUIT: string, EXIT: string}>} */
+/** @type {Readonly<{ROUTER: string, AGENT: string, MODEL: string, EXPORT: string, RESUME: string, PLANS: string, SLEEP: string, HELP: string, QUIT: string, EXIT: string}>} */
 export const COMMAND_NAMES = Object.freeze({
     ROUTER: "router",
     AGENT: "agent",
     MODEL: "model",
+    EXPORT: "export",
     RESUME: "resume",
     PLANS: "plans",
     SLEEP: "sleep",

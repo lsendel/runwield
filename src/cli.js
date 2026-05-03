@@ -48,6 +48,12 @@ async function main() {
 
     // Explicit command dispatch: `cli.js <command> ...`
     if (firstPositional && commandRegistry[firstPositional]) {
+        if (!commandRegistry[firstPositional].isCli) {
+            console.error(
+                `[Harns] Command '${firstPositional}' is only available inside interactive chat as /${firstPositional}.`,
+            );
+            Deno.exit(1);
+        }
         await commandRegistry[firstPositional].execute(args.slice(1));
         return;
     }

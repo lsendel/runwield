@@ -1,5 +1,5 @@
 import { assertEquals, assertMatch } from "@std/assert";
-import { triageReportTool } from "./triage-report.js";
+import { triageReportTool } from "../triage-report.js";
 
 /**
  * @param {{ execute: unknown }} tool

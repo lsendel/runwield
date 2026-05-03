@@ -15,7 +15,7 @@ import { runAgentSession } from "../../shared/session/session.js";
 import { extractTriageReport } from "./triage.js";
 import { askApprovalWithTasks, askPostApproval, executePlan, reviewLoop } from "../../shared/workflow/workflow.js";
 import { createDirectAgentHandler } from "../../shared/direct-agent.js";
-import { buildRepairPrompt } from "../../cmd/command-helpers.js";
+import { buildRepairPrompt } from "../command-helpers.js";
 
 /**
  * Handle router/default command.

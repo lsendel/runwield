@@ -480,6 +480,8 @@ export async function runAgentSession(
 
     /** @type {{ appendText: (delta: string) => void } | null} */
     let currentMarkdownBlock = null;
+    /** @type {string[]} */
+    const invokedToolNames = [];
 
     session.subscribe((event) => {
         switch (event.type) {
@@ -544,6 +546,7 @@ export async function runAgentSession(
             }
             case "tool_execution_start": {
                 currentMarkdownBlock = null;
+                invokedToolNames.push(event.toolName);
 
                 const filePath = getFilePathForTool(event.toolName, event.args);
                 let headerArgs = "";
@@ -625,33 +628,66 @@ export async function runAgentSession(
         }));
     }
 
+    const debugEnabled = Deno.env.get("DEBUG") === "1";
+    if (debugEnabled && agentName === "router") {
+        const logEntry = [
+            `===========================================`,
+            `=== ROUTER INVOCATION START ===`,
+            `=== TIMESTAMP: ${new Date().toISOString()} ===`,
+            `=== SYSTEM PROMPT ===`,
+            agentDef.systemPrompt,
+            `=== USER REQUEST ===`,
+            userRequest,
+            `===========================================`,
+            "",
+        ].join("\n");
+        try {
+            Deno.writeTextFileSync(join(Deno.cwd(), "debug.log"), logEntry, { append: true });
+        } catch (_e) {
+            // Ignore log error
+        }
+    }
+
+    /** @type {Error | null} */
+    let promptError = null;
+
     try {
         activeSessions.add(session);
+        await session.prompt(userRequest, requestOptions);
+        await session.agent.waitForIdle();
+    } catch (error) {
+        promptError = error instanceof Error ? error : new Error(String(error));
+        throw error;
+    } finally {
+        activeSessions.delete(session);
 
-        if (Deno.env.get("DEBUG") === "1") {
-            const logEntry = [
-                `===========================================`,
-                `=== AGENT INVOCATION: ${agentDef.name} ===`,
-                `=== TIMESTAMP: ${new Date().toISOString()} ===`,
-                `=== TOOLS: ${tools.join(", ")} ===`,
-                `=== SYSTEM PROMPT ===`,
-                agentDef.systemPrompt,
-                `=== USER REQUEST ===`,
-                userRequest,
-                `===========================================`,
-                "",
-            ].join("\n");
+        if (debugEnabled) {
+            const messages = session.agent.state.messages;
+            const summary = extractAssistantSummary(messages);
+            const logEntry = agentName === "router"
+                ? [
+                    `=== ROUTER INVOCATION END ===`,
+                    `=== TIMESTAMP: ${new Date().toISOString()} ===`,
+                    `=== ROUTER TOOLS USED: ${invokedToolNames.join(", ") || "(none)"} ===`,
+                    promptError ? `=== STATUS: ERROR (${promptError.message}) ===` : `=== STATUS: OK ===`,
+                    `===========================================`,
+                    "",
+                ].join("\n")
+                : [
+                    `=== AGENT INVOCATION END: ${agentDef.name} (${agentName}) ===`,
+                    `=== TIMESTAMP: ${new Date().toISOString()} ===`,
+                    `=== SUMMARY: ${summary || "(empty)"} ===`,
+                    `=== TOOLS USED: ${invokedToolNames.join(", ") || "(none)"} ===`,
+                    promptError ? `=== STATUS: ERROR (${promptError.message}) ===` : `=== STATUS: OK ===`,
+                    `===========================================`,
+                    "",
+                ].join("\n");
             try {
                 Deno.writeTextFileSync(join(Deno.cwd(), "debug.log"), logEntry, { append: true });
             } catch (_e) {
                 // Ignore log error
             }
         }
-
-        await session.prompt(userRequest, requestOptions);
-        await session.agent.waitForIdle();
-    } finally {
-        activeSessions.delete(session);
     }
 
     return session.agent.state.messages;
@@ -681,4 +717,31 @@ function getFilePathForTool(toolName, args) {
         default:
             return null;
     }
+}
+
+/**
+ * @param {import('@mariozechner/pi-agent-core').AgentMessage[]} messages
+ * @returns {string}
+ */
+function extractAssistantSummary(messages) {
+    for (let i = messages.length - 1; i >= 0; i--) {
+        const message = messages[i];
+        if (!message || message.role !== "assistant" || !Array.isArray(message.content)) continue;
+
+        const text = message.content
+            .map((contentBlock) => {
+                if (!contentBlock || typeof contentBlock !== "object") return "";
+                const block = /** @type {{ text?: string }} */ (contentBlock);
+                return typeof block.text === "string" ? block.text : "";
+            })
+            .join(" ")
+            .replace(/\s+/g, " ")
+            .trim();
+
+        if (!text) continue;
+        if (text.length > 240) return `${text.slice(0, 237)}...`;
+        return text;
+    }
+
+    return "";
 }

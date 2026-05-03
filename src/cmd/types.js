@@ -10,6 +10,8 @@
  * @typedef {{
  *   uiAPI?: import('../shared/ui/types.js').UiAPI,
  *   editor?: import('../shared/ui/types.js').EditorAPI,
+ *   sessionManager?: import('../shared/session/types.js').SessionManagerLike,
+ *   sessionStartedAt?: string,
  *   text?: string,
  *   tui?: import('../shared/ui/types.js').TuiAPI,
  *   originalHandleInput?: (data: string) => void | Promise<void>,

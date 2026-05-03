@@ -151,6 +151,7 @@ export async function startInteractiveSession(initialUserRequest, onMessage) {
     );
 
     setRootSessionManager(SessionManager.inMemory());
+    const sessionStartedAt = new Date().toISOString();
     setActiveOnMessage(onMessage);
     await ensureMnemosyneBinary();
     const tui = initTUI();
@@ -516,6 +517,8 @@ export async function startInteractiveSession(initialUserRequest, onMessage) {
                     await commandRegistry[command].execute(args, {
                         uiAPI,
                         editor,
+                        sessionManager: getRootSessionManager() || undefined,
+                        sessionStartedAt,
                         tui,
                         originalHandleInput,
                         text, // pass raw text so handlers can check spacing

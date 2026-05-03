@@ -9,6 +9,7 @@ const COMMAND_SUMMARIES = {
     [COMMAND_NAMES.ROUTER]: "Route a request through triage and execution/planning flow (default command).",
     [COMMAND_NAMES.AGENT]: "List available agents or talk directly to one (--agent shorthand).",
     [COMMAND_NAMES.MODEL]: "Switch active AI model via slash command or CLI.",
+    [COMMAND_NAMES.EXPORT]: "Export current interactive session to HTML (default) or JSONL.",
     [COMMAND_NAMES.RESUME]: "Resume work from a saved plan by name or file path.",
     [COMMAND_NAMES.PLANS]: "List saved plans.",
     [COMMAND_NAMES.SLEEP]: "Run /sleep prompt template (via operator) for memory optimization/cleanup.",
@@ -61,6 +62,17 @@ const COMMAND_DETAILS = {
         ],
         notes: [
             "If the plan is approved, you can proceed, re-open review, or inspect details.",
+        ],
+    },
+    [COMMAND_NAMES.EXPORT]: {
+        usage: [
+            `/export`,
+            `/export output.html`,
+            `/export output.jsonl`,
+        ],
+        notes: [
+            "Slash command only (interactive session).",
+            "Default output path is session-<iso-datetime>.html in the current working directory.",
         ],
     },
     [COMMAND_NAMES.PLANS]: {

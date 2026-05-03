@@ -1,11 +1,11 @@
 import { assert, assertEquals, assertMatch } from "@std/assert";
-import { createUserInterviewTool } from "./user-interview.js";
+import { createUserInterviewTool } from "../user-interview.js";
 
 /**
- * @param {Partial<import('../shared/ui/types.js').UiAPI>} overrides
+ * @param {Partial<import('../../shared/ui/types.js').UiAPI>} overrides
  */
 function makeUi(overrides) {
-    return /** @type {import('../shared/ui/types.js').UiAPI} */ ({
+    return /** @type {import('../../shared/ui/types.js').UiAPI} */ ({
         appendSystemMessage: () => {},
         appendAgentMessageStart: () => ({ appendText: () => {} }),
         requestRender: () => {},
@@ -21,7 +21,7 @@ function makeUi(overrides) {
  */
 async function executeTool(tool, params) {
     const execute =
-        /** @type {(id: string, params: object, signal: AbortSignal, onUpdate: () => void, context: object) => Promise<{ content: Array<{ type: string, text?: string }>, details: import('./user-interview.js').InterviewResultDetails }>} */ (tool
+        /** @type {(id: string, params: object, signal: AbortSignal, onUpdate: () => void, context: object) => Promise<{ content: Array<{ type: string, text?: string }>, details: import('../user-interview.js').InterviewResultDetails }>} */ (tool
             .execute);
     return await execute("tool-call-1", params, new AbortController().signal, () => {}, {});
 }

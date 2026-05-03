@@ -12,6 +12,7 @@ import { getAgentCompletions, runAgentsCommand } from "./agents/index.js";
 import { getModelCompletions, runModelsCommand } from "./models/index.js";
 import { runQuitCommand } from "./quit/index.js";
 import { getResumeCompletions, runResumeCommand } from "./resume/index.js";
+import { runExportCommand } from "./export/index.js";
 
 /**
  * @typedef {import('./types.js').CommandContext} CommandContext
@@ -68,6 +69,14 @@ export const commandRegistry = {
         isSlash: true,
         isCli: true,
         getArgumentCompletions: getResumeCompletions,
+    },
+    [COMMAND_NAMES.EXPORT]: {
+        name: COMMAND_NAMES.EXPORT,
+        displayName: "Export",
+        description: "Export current session (HTML default, or specify .html/.jsonl path)",
+        execute: runExportCommand,
+        isSlash: true,
+        isCli: false,
     },
     [COMMAND_NAMES.PLANS]: {
         name: COMMAND_NAMES.PLANS,
