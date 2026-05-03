@@ -3,7 +3,6 @@
  * Export current interactive session to HTML (default) or JSONL.
  */
 
-import { createAgentSession } from "@mariozechner/pi-coding-agent";
 import { join } from "@std/path";
 
 /**
@@ -53,30 +52,22 @@ function parseOptionalPathArg(text) {
  * @param {import('../registry.js').CommandContext} [options]
  */
 export async function runExportCommand(argv, options = {}) {
-    const { uiAPI, editor, sessionManager, text, sessionStartedAt } = options;
+    const { uiAPI, editor, sessionManager, sessionStartedAt } = options;
     if (!uiAPI || !editor || !sessionManager) {
         return;
     }
 
-    const inlinePath = typeof text === "string" ? parseOptionalPathArg(text.trim()) : undefined;
-    const cliPath = argv.join(" ").trim() || undefined;
-    const requestedPath = inlinePath || cliPath;
+    const requestedPath = argv.join(" ").trim();
 
     const fallbackIso = sessionStartedAt || new Date().toISOString();
     const outputPath = requestedPath || buildDefaultExportPath(fallbackIso);
 
     try {
-        const { session } = await createAgentSession({
-            cwd: Deno.cwd(),
-            tools: [],
-            sessionManager,
-        });
-
         if (outputPath.toLowerCase().endsWith(".jsonl")) {
-            const filePath = session.exportToJsonl(outputPath);
+            const filePath = sessionManager.exportToJsonl(outputPath);
             uiAPI.appendSystemMessage(`Session exported to: ${filePath}`);
         } else {
-            const filePath = await session.exportToHtml(outputPath);
+            const filePath = await sessionManager.exportToHtml(outputPath);
             uiAPI.appendSystemMessage(`Session exported to: ${filePath}`);
         }
     } catch (error) {

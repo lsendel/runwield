@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/harness.iml" filepath="$PROJECT_DIR$/.idea/harness.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/harns.iml" filepath="$PROJECT_DIR$/.idea/harns.iml" />
     </modules>
   </component>
 </project>

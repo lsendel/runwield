@@ -521,7 +521,6 @@ export async function startInteractiveSession(initialUserRequest, onMessage) {
                         sessionStartedAt,
                         tui,
                         originalHandleInput,
-                        text, // pass raw text so handlers can check spacing
                     });
                 } catch (err) {
                     uiAPI.appendSystemMessage(
