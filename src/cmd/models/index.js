@@ -3,16 +3,16 @@
  * Handler for the model listing and switching command.
  */
 
-import { setActiveModel } from "../../shared/chat-session.js";
-import { getModelRegistry } from "../../shared/models/model-registry.js";
-import { parseProviderModel } from "../../shared/models/model-validation.js";
+import { setActiveModel as setActiveModelFn } from "../../shared/chat-session.js";
+import { getModelRegistry as getModelRegistryFn } from "../../shared/models/model-registry.js";
+import { parseProviderModel as parseProviderModelFn } from "../../shared/models/model-validation.js";
 export { getModelCompletions } from "./getArgumentCompletions.js";
 
 /**
  * @typedef {Object} CommandDependencies
- * @property {typeof getModelRegistry} [getModelRegistry]
- * @property {typeof parseProviderModel} [parseProviderModel]
- * @property {typeof setActiveModel} [setActiveModel]
+ * @property {typeof getModelRegistryFn} [getModelRegistry]
+ * @property {typeof parseProviderModelFn} [parseProviderModel]
+ * @property {typeof setActiveModelFn} [setActiveModel]
  */
 
 /**
@@ -24,15 +24,20 @@ export { getModelCompletions } from "./getArgumentCompletions.js";
 export async function runModelsCommand(argv, options = {}) {
     const deps = /** @type {CommandDependencies} */ ((/** @type {any} */ (options)).__testDeps || {});
     const {
-        getModelRegistry: getModelRegistryFn = getModelRegistry,
-        parseProviderModel: parseProviderModelFn = parseProviderModel,
-        setActiveModel: setActiveModelFn = setActiveModel,
+        getModelRegistry: getModelRegistryDep,
+        parseProviderModel: parseProviderModelDep,
+        setActiveModel: setActiveModelDep,
     } = deps;
+
+    const getModelRegistry = getModelRegistryDep || getModelRegistryFn;
+    const parseProviderModel = parseProviderModelDep || parseProviderModelFn;
+    const setActiveModel = setActiveModelDep || setActiveModelFn;
+
     const { uiAPI, editor } = options;
 
     let targetModel;
     const firstArg = argv[0]?.trim();
-    const modelRegistry = getModelRegistryFn();
+    const modelRegistry = getModelRegistry();
 
     if (!firstArg) {
         if (uiAPI && editor) {
@@ -73,7 +78,7 @@ export async function runModelsCommand(argv, options = {}) {
             return;
         }
     } else {
-        const parsedArgs = parseProviderModelFn(firstArg);
+        const parsedArgs = parseProviderModel(firstArg);
         if (!parsedArgs.ok) {
             if (uiAPI) {
                 uiAPI.appendSystemMessage("Invalid model format. Use /model to switch.");
@@ -95,7 +100,7 @@ export async function runModelsCommand(argv, options = {}) {
         }
     }
 
-    setActiveModelFn(targetModel.id, targetModel.provider);
+    setActiveModel(targetModel.id, targetModel.provider);
 
     if (uiAPI) {
         uiAPI.appendSystemMessage(`Switched model to ${targetModel.provider}/${targetModel.id}`);

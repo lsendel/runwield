@@ -3,43 +3,50 @@
  * List saved plans.
  */
 
-import { parseArgs } from "@std/cli/parse-args";
+import { parseArgs as parseArgsFn } from "@std/cli/parse-args";
 import { CWD } from "../../constants.js";
-import { listPlans } from "../../plan-store.js";
-import { printCommandHelp } from "../help/index.js";
+import { listPlans as listPlansFn } from "../../plan-store.js";
+import { printCommandHelp as printCommandHelpFn } from "../help/index.js";
 
 /**
  * @typedef {Object} CommandDependencies
- * @property {typeof parseArgs} [parseArgs]
- * @property {typeof listPlans} [listPlans]
- * @property {typeof printCommandHelp} [printCommandHelp]
+ * @property {typeof parseArgsFn} [parseArgs]
+ * @property {typeof listPlansFn} [listPlans]
+ * @property {typeof printCommandHelpFn} [printCommandHelp]
  */
 
 /**
  * Handle `plans` command.
  *
  * @param {string[]} argv
- * @param {import('../registry.js').CommandContext & { __testDeps?: { parseArgs?: typeof parseArgs, listPlans?: typeof listPlans, printCommandHelp?: typeof printCommandHelp }}} [options]
+ * @param {import('../registry.js').CommandContext & { __testDeps?: CommandDependencies }} [options]
  */
 export async function runPlansCommand(argv, options = {}) {
     const deps = /** @type {CommandDependencies} */ options.__testDeps || {};
     const {
-        parseArgs: parseArgsFn = parseArgs,
-        listPlans: listPlansFn = listPlans,
-        printCommandHelp: printCommandHelpFn = printCommandHelp,
+        parseArgs: parseArgsDep,
+        listPlans: listPlansDep,
+        printCommandHelp: printCommandHelpDep,
     } = deps;
 
-    const parsed = parseArgsFn(argv, {
+    /** @type {typeof parseArgsFn} */
+    const parseArgs = parseArgsDep || parseArgsFn;
+    /** @type {typeof listPlansFn} */
+    const listPlans = listPlansDep || listPlansFn;
+    /** @type {typeof printCommandHelpFn} */
+    const printCommandHelp = printCommandHelpDep || printCommandHelpFn;
+
+    const parsed = parseArgs(argv, {
         boolean: ["help"],
         alias: { h: "help" },
     });
 
     if (parsed.help) {
-        printCommandHelpFn("plans");
+        printCommandHelp("plans");
         return;
     }
 
-    const plans = await listPlansFn(CWD);
+    const plans = await listPlans(CWD);
     if (plans.length === 0) {
         console.log("[Harns] No saved plans found.");
         return;

@@ -3,14 +3,13 @@
  * Global and command-specific help command.
  */
 
-import { parseArgs } from "@std/cli/parse-args";
+import { parseArgs as parseArgsFn } from "@std/cli/parse-args";
 import { CLI_BIN } from "../../constants.js";
 import { getCliCommandDefinitions, getCommandDefinition } from "../registry.js";
 
 /**
  * @typedef {Object} CommandDependencies
- * @property {typeof parseArgs} [parseArgs]
- * @property {typeof printCommandHelp} [printCommandHelp]
+ * @property {typeof parseArgsFn} [parseArgs]
  * @property {(code: number) => never} [exit]
  */
 
@@ -73,23 +72,25 @@ export async function runHelpCommand(argv, options = {}) {
 
     const deps = /** @type {CommandDependencies} */ ((/** @type {any} */ (options)).__testDeps || {});
     const {
-        parseArgs: parseArgsFn = parseArgs,
-        printCommandHelp: printCommandHelpFn = printCommandHelp,
-        exit: exitFn = Deno.exit,
+        parseArgs: parseArgsDep,
+        exit: exitDep,
     } = deps;
 
-    const parsed = parseArgsFn(argv, {
+    const parseArgs = parseArgsDep || parseArgsFn;
+    const exit = exitDep || Deno.exit;
+
+    const parsed = parseArgs(argv, {
         boolean: ["help"],
         alias: { h: "help" },
     });
 
     const [commandName] = parsed._.map(String);
 
-    const found = printCommandHelpFn(commandName);
+    const found = printCommandHelp(commandName);
     if (!found && commandName) {
         console.error(`[Harns] Unknown command for help: ${commandName}`);
         console.log();
-        exitFn(1);
+        exit(1);
     }
 
     !commandName && printGlobalHelp();

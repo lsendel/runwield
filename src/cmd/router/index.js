@@ -3,23 +3,31 @@
  * Router command implementation (also used as default command).
  */
 
-import { printCommandHelp } from "../help/index.js";
-import { setActiveAgent, startInteractiveSession } from "../../shared/chat-session.js";
+import { printCommandHelp as printCommandHelpFn } from "../help/index.js";
+import {
+    setActiveAgent as setActiveAgentFn,
+    startInteractiveSession as startInteractiveSessionFn,
+} from "../../shared/chat-session.js";
 import { CLI_BIN, COMMAND_NAMES, CWD } from "../../constants.js";
-import { ensurePlansDir } from "../../plan-store.js";
-import { triageReportTool } from "../../tools/triage-report.js";
-import { planWrittenTool } from "../../tools/plan-written.js";
-import { createUserInterviewTool } from "../../tools/user-interview.js";
-import { runAgentSession } from "../../shared/session/session.js";
-import { extractTriageReport } from "./triage.js";
-import { askApprovalWithTasks, askPostApproval, executePlan, reviewLoop } from "../../shared/workflow/workflow.js";
-import { createDirectAgentHandler } from "../../shared/direct-agent.js";
-import { buildRepairPrompt } from "../command-helpers.js";
+import { ensurePlansDir as ensurePlansDirFn } from "../../plan-store.js";
+import { triageReportTool as triageReportToolFn } from "../../tools/triage-report.js";
+import { planWrittenTool as planWrittenToolFn } from "../../tools/plan-written.js";
+import { createUserInterviewTool as createUserInterviewToolFn } from "../../tools/user-interview.js";
+import { runAgentSession as runAgentSessionFn } from "../../shared/session/session.js";
+import { extractTriageReport as extractTriageReportFn } from "./triage.js";
+import {
+    askApprovalWithTasks as askApprovalWithTasksFn,
+    askPostApproval as askPostApprovalFn,
+    executePlan as executePlanFn,
+    reviewLoop as reviewLoopFn,
+} from "../../shared/workflow/workflow.js";
+import { createDirectAgentHandler as createDirectAgentHandlerFn } from "../../shared/direct-agent.js";
+import { buildRepairPrompt as buildRepairPromptFn } from "../command-helpers.js";
 
 /**
  * @typedef {Object} RunRouterCommandDeps
- * @property {typeof printCommandHelp} [printCommandHelp]
- * @property {typeof startInteractiveSession} [startInteractiveSession]
+ * @property {typeof printCommandHelpFn} [printCommandHelp]
+ * @property {typeof startInteractiveSessionFn} [startInteractiveSession]
  */
 
 /**
@@ -31,38 +39,42 @@ import { buildRepairPrompt } from "../command-helpers.js";
 export async function runRouterCommand(argv, options = {}) {
     const deps = /** @type {RunRouterCommandDeps} */ ((/** @type {any} */ (options)).__testDeps || {});
     const {
-        printCommandHelp: printCommandHelpFn = printCommandHelp,
-        startInteractiveSession: startInteractiveSessionFn = startInteractiveSession,
+        printCommandHelp: printCommandHelpDep,
+        startInteractiveSession: startInteractiveSessionDep,
     } = deps;
+
+    const printCommandHelp = printCommandHelpDep || printCommandHelpFn;
+    const startInteractiveSession = startInteractiveSessionDep || startInteractiveSessionFn;
+
     const userRequest = argv.join(" ").trim();
 
     if (userRequest === "help") {
-        printCommandHelpFn(COMMAND_NAMES.ROUTER);
+        printCommandHelp(COMMAND_NAMES.ROUTER);
         return;
     }
 
     // Launch the interactive loop with the router as the default handler
     // The loop inside startInteractiveSession will call setActiveAgent
-    await startInteractiveSessionFn(userRequest, routerCmdOnMessage, {
+    await startInteractiveSession(userRequest, routerCmdOnMessage, {
         sessionStartMode: options.sessionStartMode || "new",
     });
 }
 
 /**
  * @typedef RouterCmdTestDeps
- * @property {(cwd: string) => Promise<string>} [ensurePlansDir]
- * @property {typeof runAgentSession} [runAgentSession]
- * @property {typeof extractTriageReport} [extractTriageReport]
- * @property {typeof createUserInterviewTool} [createUserInterviewTool]
- * @property {typeof reviewLoop} [reviewLoop]
- * @property {typeof askPostApproval} [askPostApproval]
- * @property {typeof askApprovalWithTasks} [askApprovalWithTasks]
- * @property {typeof executePlan} [executePlan]
- * @property {typeof setActiveAgent} [setActiveAgent]
- * @property {typeof createDirectAgentHandler} [createDirectAgentHandler]
- * @property {typeof buildRepairPrompt} [buildRepairPrompt]
- * @property {typeof triageReportTool} [triageReportTool]
- * @property {typeof planWrittenTool} [planWrittenTool]
+ * @property {typeof ensurePlansDirFn} [ensurePlansDir]
+ * @property {typeof runAgentSessionFn} [runAgentSession]
+ * @property {typeof extractTriageReportFn} [extractTriageReport]
+ * @property {typeof createUserInterviewToolFn} [createUserInterviewTool]
+ * @property {typeof reviewLoopFn} [reviewLoop]
+ * @property {typeof askPostApprovalFn} [askPostApproval]
+ * @property {typeof askApprovalWithTasksFn} [askApprovalWithTasks]
+ * @property {typeof executePlanFn} [executePlan]
+ * @property {typeof setActiveAgentFn} [setActiveAgent]
+ * @property {typeof createDirectAgentHandlerFn} [createDirectAgentHandler]
+ * @property {typeof buildRepairPromptFn} [buildRepairPrompt]
+ * @property {typeof triageReportToolFn} [triageReportTool]
+ * @property {typeof planWrittenToolFn} [planWrittenTool]
  */
 
 /**
@@ -75,25 +87,41 @@ export async function runRouterCommand(argv, options = {}) {
  * @param {RouterCmdTestDeps} [testDeps]
  */
 export async function routerCmdOnMessage(userRequest, images, uiAPI, sessionManager, testDeps = {}) {
-    const ensurePlansDirFn = testDeps.ensurePlansDir || ensurePlansDir;
-    const runAgentSessionFn = testDeps.runAgentSession || runAgentSession;
-    const extractTriageReportFn = testDeps.extractTriageReport || extractTriageReport;
-    const createUserInterviewToolFn = testDeps.createUserInterviewTool || createUserInterviewTool;
-    const reviewLoopFn = testDeps.reviewLoop || reviewLoop;
-    const askPostApprovalFn = testDeps.askPostApproval || askPostApproval;
-    const askApprovalWithTasksFn = testDeps.askApprovalWithTasks || askApprovalWithTasks;
-    const executePlanFn = testDeps.executePlan || executePlan;
-    const setActiveAgentFn = testDeps.setActiveAgent || setActiveAgent;
-    const createDirectAgentHandlerFn = testDeps.createDirectAgentHandler || createDirectAgentHandler;
-    const buildRepairPromptFn = testDeps.buildRepairPrompt || buildRepairPrompt;
-    const triageReportToolDef = testDeps.triageReportTool || triageReportTool;
-    const planWrittenToolDef = testDeps.planWrittenTool || planWrittenTool;
+    const {
+        ensurePlansDir: ensurePlansDirDep,
+        runAgentSession: runAgentSessionDep,
+        extractTriageReport: extractTriageReportDep,
+        createUserInterviewTool: createUserInterviewToolDep,
+        reviewLoop: reviewLoopDep,
+        askPostApproval: askPostApprovalDep,
+        askApprovalWithTasks: askApprovalWithTasksDep,
+        executePlan: executePlanDep,
+        setActiveAgent: setActiveAgentDep,
+        createDirectAgentHandler: createDirectAgentHandlerDep,
+        buildRepairPrompt: buildRepairPromptDep,
+        triageReportTool: triageReportToolDep,
+        planWrittenTool: planWrittenToolDep,
+    } = testDeps;
 
-    await ensurePlansDirFn(CWD);
+    const ensurePlansDir = ensurePlansDirDep || ensurePlansDirFn;
+    const runAgentSession = runAgentSessionDep || runAgentSessionFn;
+    const extractTriageReport = extractTriageReportDep || extractTriageReportFn;
+    const createUserInterviewTool = createUserInterviewToolDep || createUserInterviewToolFn;
+    const reviewLoop = reviewLoopDep || reviewLoopFn;
+    const askPostApproval = askPostApprovalDep || askPostApprovalFn;
+    const askApprovalWithTasks = askApprovalWithTasksDep || askApprovalWithTasksFn;
+    const executePlan = executePlanDep || executePlanFn;
+    const setActiveAgent = setActiveAgentDep || setActiveAgentFn;
+    const createDirectAgentHandler = createDirectAgentHandlerDep || createDirectAgentHandlerFn;
+    const buildRepairPrompt = buildRepairPromptDep || buildRepairPromptFn;
+    const triageReportToolDef = triageReportToolDep || triageReportToolFn;
+    const planWrittenToolDef = planWrittenToolDep || planWrittenToolFn;
+
+    await ensurePlansDir(CWD);
 
     uiAPI.appendSystemMessage("=== Phase A: Router (Triage) ===");
 
-    const routerMessages = await runAgentSessionFn({
+    const routerMessages = await runAgentSession({
         agentName: "router",
         customTools: [triageReportToolDef],
         userRequest,
@@ -102,7 +130,7 @@ export async function routerCmdOnMessage(userRequest, images, uiAPI, sessionMana
         sessionManager,
     });
 
-    const triage = extractTriageReportFn(routerMessages);
+    const triage = extractTriageReport(routerMessages);
 
     if (!triage) {
         const lastAssistant = routerMessages.slice().reverse().find((m) => m.role === "assistant");
@@ -139,7 +167,7 @@ export async function routerCmdOnMessage(userRequest, images, uiAPI, sessionMana
             "",
         ].join("\n");
 
-        await runAgentSessionFn({
+        await runAgentSession({
             agentName: "operator",
             userRequest: operatorRequest,
             uiAPI,
@@ -155,7 +183,7 @@ export async function routerCmdOnMessage(userRequest, images, uiAPI, sessionMana
                 `Quick fix executed by operator. Summary:\n${triage.summary}`,
             );
         }
-        setActiveAgentFn("Operator", createDirectAgentHandlerFn("operator"), uiAPI);
+        setActiveAgent("Operator", createDirectAgentHandler("operator"), uiAPI);
         return;
     }
 
@@ -178,18 +206,18 @@ export async function routerCmdOnMessage(userRequest, images, uiAPI, sessionMana
             "Choose a descriptive, kebab-case filename (e.g., plans/add-dark-mode-toggle.md).",
         ].join("\n");
 
-        const result = await reviewLoopFn({
+        const result = await reviewLoop({
             agentName: "planner",
-            customTools: [planWrittenToolDef, createUserInterviewToolFn(uiAPI)],
+            customTools: [planWrittenToolDef, createUserInterviewTool(uiAPI)],
             initialRequest: plannerRequest,
             triageMeta: triage,
             uiAPI,
         });
 
         if (result) {
-            const action = await askPostApprovalFn(result.planName, uiAPI);
+            const action = await askPostApproval(result.planName, uiAPI);
             if (action === "proceed") {
-                await executePlanFn(result.planName, triage, uiAPI);
+                await executePlan(result.planName, triage, uiAPI);
                 if (sessionManager) {
                     sessionManager.appendCustomMessageEntry(
                         "system",
@@ -198,7 +226,7 @@ export async function routerCmdOnMessage(userRequest, images, uiAPI, sessionMana
                         `FEATURE plan executed: plans/${result.planName}.md. Summary: ${triage.summary}`,
                     );
                 }
-                setActiveAgentFn("Operator", createDirectAgentHandlerFn("operator"), uiAPI);
+                setActiveAgent("Operator", createDirectAgentHandler("operator"), uiAPI);
             } else {
                 uiAPI.appendSystemMessage(
                     `Plan saved. Resume later with: ${CLI_BIN} resume ${result.planName}`,
@@ -242,27 +270,27 @@ export async function routerCmdOnMessage(userRequest, images, uiAPI, sessionMana
             "Since this is a PROJECT, include a Tasks table for multi-agent execution.",
         ].join("\n");
 
-        const result = await reviewLoopFn({
+        const result = await reviewLoop({
             agentName: "architect",
-            customTools: [planWrittenToolDef, createUserInterviewToolFn(uiAPI)],
+            customTools: [planWrittenToolDef, createUserInterviewTool(uiAPI)],
             initialRequest: architectRequest,
             triageMeta: triage,
             uiAPI,
         });
 
         if (result) {
-            const action = await askApprovalWithTasksFn(result.planName, uiAPI, result.tasks);
+            const action = await askApprovalWithTasks(result.planName, uiAPI, result.tasks);
             if (action === "proceed") {
-                const execRes = await executePlanFn(result.planName, triage, uiAPI, result.tasks);
+                const execRes = await executePlan(result.planName, triage, uiAPI, result.tasks);
                 if (execRes && execRes.repairRequired) {
                     uiAPI.appendSystemMessage(
                         `[Harns] Execution failed due to task table error. Rerouting to Architect for repair...`,
                     );
                     // Trigger immediate repair loop
-                    await reviewLoopFn({
+                    await reviewLoop({
                         agentName: "architect",
-                        customTools: [planWrittenToolDef, createUserInterviewToolFn(uiAPI)],
-                        initialRequest: buildRepairPromptFn(
+                        customTools: [planWrittenToolDef, createUserInterviewTool(uiAPI)],
+                        initialRequest: buildRepairPrompt(
                             result.planName,
                             execRes.error || "Unknown task table error",
                         ),
@@ -277,7 +305,7 @@ export async function routerCmdOnMessage(userRequest, images, uiAPI, sessionMana
                         true,
                         `PROJECT plan executed: plans/${result.planName}.md. Summary: ${triage.summary}`,
                     );
-                    setActiveAgentFn("Operator", createDirectAgentHandlerFn("operator"), uiAPI);
+                    setActiveAgent("Operator", createDirectAgentHandler("operator"), uiAPI);
                 }
             } else {
                 uiAPI.appendSystemMessage(

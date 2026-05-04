@@ -4,7 +4,10 @@
  */
 
 import { join } from "@std/path";
-import { exportRootSessionToHtml, exportRootSessionToJsonl } from "../../shared/session/root-session.js";
+import {
+    exportRootSessionToHtml as exportRootSessionToHtmlFn,
+    exportRootSessionToJsonl as exportRootSessionToJsonlFn,
+} from "../../shared/session/root-session.js";
 
 /**
  * @param {string} value
@@ -25,8 +28,8 @@ function buildDefaultExportPath(sessionStartIso) {
 
 /**
  * @typedef {Object} CommandDependencies
- * @property {typeof exportRootSessionToHtml} [exportRootSessionToHtml]
- * @property {typeof exportRootSessionToJsonl} [exportRootSessionToJsonl]
+ * @property {typeof exportRootSessionToHtmlFn} [exportRootSessionToHtml]
+ * @property {typeof exportRootSessionToJsonlFn} [exportRootSessionToJsonl]
  */
 
 /**
@@ -38,9 +41,13 @@ function buildDefaultExportPath(sessionStartIso) {
 export async function runExportCommand(argv, options = {}) {
     const deps = /** @type {CommandDependencies} */ ((/** @type {any} */ (options)).__testDeps || {});
     const {
-        exportRootSessionToHtml: exportRootSessionToHtmlFn = exportRootSessionToHtml,
-        exportRootSessionToJsonl: exportRootSessionToJsonlFn = exportRootSessionToJsonl,
+        exportRootSessionToHtml: exportRootSessionToHtmlDep,
+        exportRootSessionToJsonl: exportRootSessionToJsonlDep,
     } = deps;
+
+    const exportRootSessionToHtml = exportRootSessionToHtmlDep || exportRootSessionToHtmlFn;
+    const exportRootSessionToJsonl = exportRootSessionToJsonlDep || exportRootSessionToJsonlFn;
+
     const { uiAPI, editor, sessionManager, sessionStartedAt } = options;
     if (!uiAPI || !editor || !sessionManager) {
         return;
@@ -53,10 +60,10 @@ export async function runExportCommand(argv, options = {}) {
 
     try {
         if (outputPath.toLowerCase().endsWith(".jsonl")) {
-            const filePath = exportRootSessionToJsonlFn(sessionManager, outputPath);
+            const filePath = exportRootSessionToJsonl(sessionManager, outputPath);
             uiAPI.appendSystemMessage(`Session exported to: ${filePath}`);
         } else {
-            const filePath = await exportRootSessionToHtmlFn(sessionManager, outputPath);
+            const filePath = await exportRootSessionToHtml(sessionManager, outputPath);
             uiAPI.appendSystemMessage(`Session exported to: ${filePath}`);
         }
     } catch (error) {

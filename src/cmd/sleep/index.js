@@ -3,18 +3,18 @@
  * Sleep command: run memory optimization/cleanup agent invocation.
  */
 
-import { parseArgs } from "@std/cli/parse-args";
+import { parseArgs as parseArgsFn } from "@std/cli/parse-args";
 import { COMMAND_NAMES } from "../../constants.js";
-import { runAgentSession } from "../../shared/session/session.js";
-import { printCommandHelp } from "../help/index.js";
-import { ensureMnemosyneBinary } from "../../shared/runtime-preflight.js";
+import { runAgentSession as runAgentSessionFn } from "../../shared/session/session.js";
+import { printCommandHelp as printCommandHelpFn } from "../help/index.js";
+import { ensureMnemosyneBinary as ensureMnemosyneBinaryFn } from "../../shared/runtime-preflight.js";
 
 /**
  * @typedef {Object} CommandDependencies
- * @property {typeof parseArgs} [parseArgs]
- * @property {typeof printCommandHelp} [printCommandHelp]
- * @property {typeof ensureMnemosyneBinary} [ensureMnemosyneBinary]
- * @property {typeof runAgentSession} [runAgentSession]
+ * @property {typeof parseArgsFn} [parseArgs]
+ * @property {typeof printCommandHelpFn} [printCommandHelp]
+ * @property {typeof ensureMnemosyneBinaryFn} [ensureMnemosyneBinary]
+ * @property {typeof runAgentSessionFn} [runAgentSession]
  */
 
 /**
@@ -26,29 +26,34 @@ import { ensureMnemosyneBinary } from "../../shared/runtime-preflight.js";
 export async function runSleepCommand(argv, options = {}) {
     const deps = /** @type {CommandDependencies} */ ((/** @type {any} */ (options)).__testDeps || {});
     const {
-        parseArgs: parseArgsFn = parseArgs,
-        printCommandHelp: printCommandHelpFn = printCommandHelp,
-        ensureMnemosyneBinary: ensureMnemosyneBinaryFn = ensureMnemosyneBinary,
-        runAgentSession: runAgentSessionFn = runAgentSession,
+        parseArgs: parseArgsDep,
+        printCommandHelp: printCommandHelpDep,
+        ensureMnemosyneBinary: ensureMnemosyneBinaryDep,
+        runAgentSession: runAgentSessionDep,
     } = deps;
 
-    const parsed = parseArgsFn(argv, {
+    const parseArgs = parseArgsDep || parseArgsFn;
+    const printCommandHelp = printCommandHelpDep || printCommandHelpFn;
+    const ensureMnemosyneBinary = ensureMnemosyneBinaryDep || ensureMnemosyneBinaryFn;
+    const runAgentSession = runAgentSessionDep || runAgentSessionFn;
+
+    const parsed = parseArgs(argv, {
         boolean: ["help"],
         alias: { h: "help" },
         stopEarly: true,
     });
 
     if (parsed.help) {
-        printCommandHelpFn(COMMAND_NAMES.SLEEP);
+        printCommandHelp(COMMAND_NAMES.SLEEP);
         return;
     }
 
-    await ensureMnemosyneBinaryFn();
+    await ensureMnemosyneBinary();
 
     console.log("[Harns] Running sleep mode (memory optimization)...\n");
 
     // Route through the /sleep prompt template using the operator agent
-    await runAgentSessionFn({
+    await runAgentSession({
         agentName: "operator",
         userRequest: "/sleep",
     });

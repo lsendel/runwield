@@ -1,8 +1,8 @@
-import { stopTUI } from "../../shared/tui.js";
+import { stopTUI as stopTUIFn } from "../../shared/tui.js";
 
 /**
  * @typedef {Object} CommandDependencies
- * @property {typeof stopTUI} [stopTUI]
+ * @property {typeof stopTUIFn} [stopTUI]
  * @property {typeof setTimeout} [setTimeout]
  * @property {typeof Deno.exit} [exit]
  */
@@ -14,19 +14,24 @@ import { stopTUI } from "../../shared/tui.js";
 async function runQuitCommand(_argv, options = {}) {
     const deps = /** @type {CommandDependencies} */ ((/** @type {any} */ (options)).__testDeps || {});
     const {
-        stopTUI: stopTUIFn = stopTUI,
-        setTimeout: setTimeoutFn = setTimeout,
-        exit: exitFn = Deno.exit,
+        stopTUI: stopTUIDep,
+        setTimeout: setTimeoutDep,
+        exit: exitDep,
     } = deps;
+
+    const stopTUI = stopTUIDep || stopTUIFn;
+    const setTimeout = setTimeoutDep || globalThis.setTimeout;
+    const exit = exitDep || Deno.exit;
+
     const { editor, tui } = options;
 
     if (!editor || !tui) return;
 
     editor.setText("");
     tui.requestRender();
-    setTimeoutFn(() => {
-        stopTUIFn();
-        setTimeoutFn(() => exitFn(0), 100);
+    setTimeout(() => {
+        stopTUI();
+        setTimeout(() => exit(0), 100);
     }, 50);
 
     await Promise.resolve();

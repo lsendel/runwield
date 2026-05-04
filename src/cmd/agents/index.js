@@ -3,22 +3,25 @@
  * Agent command — list available agents or start a direct agent session.
  */
 
-import { printCommandHelp } from "../help/index.js";
+import { printCommandHelp as printCommandHelpFn } from "../help/index.js";
 import { routerCmdOnMessage } from "../router/index.js";
-import { setActiveAgent, startInteractiveSession } from "../../shared/chat-session.js";
-import { listAvailableAgents } from "../../shared/agents.js";
+import {
+    setActiveAgent as setActiveAgentFn,
+    startInteractiveSession as startInteractiveSessionFn,
+} from "../../shared/chat-session.js";
+import { listAvailableAgents as listAvailableAgentsFn } from "../../shared/agents.js";
 import { COMMAND_NAMES } from "../../constants.js";
-import { createDirectAgentHandler } from "../../shared/direct-agent.js";
+import { createDirectAgentHandler as createDirectAgentHandlerFn } from "../../shared/direct-agent.js";
 
 export { getAgentCompletions } from "./getArgumentCompletions.js";
 
 /**
  * @typedef {Object} CommandDependencies
- * @property {typeof listAvailableAgents} [listAvailableAgents]
- * @property {typeof createDirectAgentHandler} [createDirectAgentHandler]
- * @property {typeof setActiveAgent} [setActiveAgent]
- * @property {typeof startInteractiveSession} [startInteractiveSession]
- * @property {typeof printCommandHelp} [printCommandHelp]
+ * @property {typeof listAvailableAgentsFn} [listAvailableAgents]
+ * @property {typeof createDirectAgentHandlerFn} [createDirectAgentHandler]
+ * @property {typeof setActiveAgentFn} [setActiveAgent]
+ * @property {typeof startInteractiveSessionFn} [startInteractiveSession]
+ * @property {typeof printCommandHelpFn} [printCommandHelp]
  * @property {typeof Deno.exit} [exit]
  */
 
@@ -32,14 +35,20 @@ export { getAgentCompletions } from "./getArgumentCompletions.js";
  */
 async function runAgentsCommandCli(agentName, rest, deps = {}) {
     const {
-        listAvailableAgents: listAvailableAgentsFn = listAvailableAgents,
-        createDirectAgentHandler: createDirectAgentHandlerFn = createDirectAgentHandler,
-        setActiveAgent: setActiveAgentFn = setActiveAgent,
-        startInteractiveSession: startInteractiveSessionFn = startInteractiveSession,
-        exit: exitFn = Deno.exit,
+        listAvailableAgents: listAvailableAgentsDep,
+        createDirectAgentHandler: createDirectAgentHandlerDep,
+        setActiveAgent: setActiveAgentDep,
+        startInteractiveSession: startInteractiveSessionDep,
+        exit: exitDep,
     } = deps;
 
-    const agents = await listAvailableAgentsFn();
+    const listAvailableAgents = listAvailableAgentsDep || listAvailableAgentsFn;
+    const createDirectAgentHandler = createDirectAgentHandlerDep || createDirectAgentHandlerFn;
+    const setActiveAgent = setActiveAgentDep || setActiveAgentFn;
+    const startInteractiveSession = startInteractiveSessionDep || startInteractiveSessionFn;
+    const exit = exitDep || Deno.exit;
+
+    const agents = await listAvailableAgents();
 
     // No agent name: list all and exit
     if (!agentName) {
@@ -59,15 +68,15 @@ async function runAgentsCommandCli(agentName, rest, deps = {}) {
         for (const agent of agents) {
             console.log(`  ${agent.name.padEnd(14)} ${agent.description}`);
         }
-        exitFn(1);
+        exit(1);
         return;
     }
 
-    const handler = createDirectAgentHandlerFn(agentName);
+    const handler = createDirectAgentHandler(agentName);
     const userRequest = rest.join(" ").trim();
 
-    setActiveAgentFn(match.displayName, handler);
-    await startInteractiveSessionFn(userRequest || null, handler);
+    setActiveAgent(match.displayName, handler);
+    await startInteractiveSession(userRequest || null, handler);
 }
 
 /**
@@ -85,12 +94,16 @@ async function runAgentsCommandCli(agentName, rest, deps = {}) {
  */
 async function runAgentsCommandTUI(agentName, _rest, options, deps = {}) {
     const {
-        listAvailableAgents: listAvailableAgentsFn = listAvailableAgents,
-        createDirectAgentHandler: createDirectAgentHandlerFn = createDirectAgentHandler,
-        setActiveAgent: setActiveAgentFn = setActiveAgent,
+        listAvailableAgents: listAvailableAgentsDep,
+        createDirectAgentHandler: createDirectAgentHandlerDep,
+        setActiveAgent: setActiveAgentDep,
     } = deps;
 
-    const agents = await listAvailableAgentsFn();
+    const listAvailableAgents = listAvailableAgentsDep || listAvailableAgentsFn;
+    const createDirectAgentHandler = createDirectAgentHandlerDep || createDirectAgentHandlerFn;
+    const setActiveAgent = setActiveAgentDep || setActiveAgentFn;
+
+    const agents = await listAvailableAgents();
     const { tui, uiAPI, editor } = options;
     editor.setText("");
 
@@ -121,9 +134,9 @@ async function runAgentsCommandTUI(agentName, _rest, options, deps = {}) {
         return;
     }
 
-    const handler = match.name == "router" ? routerCmdOnMessage : createDirectAgentHandlerFn(match.name);
+    const handler = match.name == "router" ? routerCmdOnMessage : createDirectAgentHandler(match.name);
 
-    setActiveAgentFn(match.displayName, handler, uiAPI, match.model);
+    setActiveAgent(match.displayName, handler, uiAPI, match.model);
     tui.setFocus(/** @type {import('@mariozechner/pi-tui').Component} */ (/** @type {unknown} */ (editor)));
 }
 
@@ -145,13 +158,12 @@ async function runAgentsCommandTUI(agentName, _rest, options, deps = {}) {
  */
 export async function runAgentsCommand(argv, options = {}) {
     const deps = /** @type {CommandDependencies} */ ((/** @type {any} */ (options)).__testDeps || {});
-    const {
-        printCommandHelp: printCommandHelpFn = printCommandHelp,
-    } = deps;
+    const { printCommandHelp: printCommandHelpDep } = deps;
+    const printCommandHelp = printCommandHelpDep || printCommandHelpFn;
     const [agentName, ...rest] = argv;
 
     if (agentName === "help") {
-        printCommandHelpFn(COMMAND_NAMES.AGENT);
+        printCommandHelp(COMMAND_NAMES.AGENT);
         return;
     }
 
