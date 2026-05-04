@@ -703,6 +703,17 @@ export async function runAgentSession(
     } finally {
         activeSessions.delete(session);
 
+        // Defensive cleanup: clear pending thinking buffer and force idle UI state.
+        // This handles abort/error edge paths where turn_end events may never fire.
+        pendingThinkingText = "";
+        if (uiAPI) {
+            try {
+                if (uiAPI.setBusy) uiAPI.setBusy(false);
+            } catch (_e) {
+                // Ignore UI API errors during cleanup
+            }
+        }
+
         if (debugEnabled) {
             const messages = session.agent.state.messages;
             const summary = extractAssistantSummary(messages);

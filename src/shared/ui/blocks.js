@@ -148,7 +148,9 @@ export class ToolExecutionBlock {
 
         // Header
         const commandText = argsStr.trim();
-        const headerText = commandText ? `${toolName} ${commandText}` : toolName;
+        const headerText = toolName === "bash"
+            ? `$${commandText ? ` ${commandText}` : ""}`
+            : (commandText ? `${toolName} ${commandText}` : toolName);
         this.header = new ColoredBlock(
             "surface1",
             new PaddedBlock(2, 1, new Text(theme.fg("text", theme.bold(headerText)), 0, 0)),
@@ -229,7 +231,7 @@ export class ToolExecutionBlock {
             : lines;
         const renderedText = shown.join("\n");
         this.bodyTextComponent.setText(
-            this.isError ? theme.fg("error", renderedText) : theme.fg("subtext0", renderedText),
+            this.isError ? theme.fg("text", renderedText) : theme.fg("subtext0", renderedText),
         );
     }
 
@@ -255,9 +257,9 @@ export class ToolExecutionBlock {
         this.isError = isError;
 
         if (isError) {
-            this.header.bgColor = "maroon"; // Highlight header in red on error
-            this.bodyBlock.bgColor = "mantle"; // Darker background for error body
-            this.footerBlock.bgColor = "maroon";
+            this.header.bgColor = "toolErrorBg";
+            this.bodyBlock.bgColor = "toolErrorBg";
+            this.footerBlock.bgColor = "toolErrorBg";
         }
 
         this.durationStr = `Took ${(durationMs / 1000).toFixed(1)}s`;

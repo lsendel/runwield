@@ -24,6 +24,7 @@ const colors = {
     mauve: "#cba6f7", // Accent
     red: "#f38ba8", // Error
     maroon: "#eba0ac",
+    toolErrorBg: "#4c3a4c",
     peach: "#fab387",
     yellow: "#f9e2af", // Warning
     green: "#a6e3a1", // Success
@@ -66,16 +67,8 @@ export const theme = {
      * @returns {string}
      */
     bg: (type, text) => {
-        switch (type) {
-            case "base":
-                return chalk.bgHex(colors.base)(text);
-            case "mantle":
-                return chalk.bgHex(colors.mantle)(text);
-            case "crust":
-                return chalk.bgHex(colors.crust)(text);
-            default:
-                return chalk.bgHex(colors.base)(text);
-        }
+        const color = /** @type {Record<string, string>} */ (colors)[type] || colors.base;
+        return chalk.bgHex(color)(text);
     },
     bold: chalk.bold,
     italic: chalk.italic,

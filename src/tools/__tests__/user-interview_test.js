@@ -72,6 +72,7 @@ Deno.test("userInterviewTool completes a single yes/no question", async () => {
         prompt: "Proceed with the scoped feature?",
         value: true,
         valueLabel: "yes",
+        otherText: undefined,
     });
     assertEquals(firstText(result), "Interview completed: captured 1/1 answer(s).");
 });

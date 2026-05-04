@@ -446,6 +446,84 @@ export async function startInteractiveSession(initialUserRequest, onMessage, opt
     // Expose a UI API for agents to append to the message list
     const uiAPI = createUiApi(tui, messageList, runningTasksComponent);
 
+    // Ensure modal prompts (select/text) always return focus to the editor once settled.
+    // Otherwise a settled prompt block can keep focus and swallow Esc, making cancellation feel broken.
+    const basePromptSelect = uiAPI.promptSelect?.bind(uiAPI);
+    if (basePromptSelect) {
+        uiAPI.promptSelect = async (title, options) => {
+            try {
+                return await basePromptSelect(title, options);
+            } finally {
+                tui.setFocus(editor);
+                tui.requestRender();
+            }
+        };
+    }
+
+    const basePromptText = uiAPI.promptText?.bind(uiAPI);
+    if (basePromptText) {
+        uiAPI.promptText = async (title, opts) => {
+            try {
+                return await basePromptText(title, opts);
+            } finally {
+                tui.setFocus(editor);
+                tui.requestRender();
+            }
+        };
+    }
+
+    // ─── Unified Active-Operation Cancellation State ──────────────────
+
+    /** @type {(() => void) | null} */
+    let activeOperationCancel = null;
+
+    /** @type {{ pid?: number, kill?: () => void } | null} */
+    let activeBashProc = null;
+
+    /** Monotonically increasing counter; each new operation increments it.
+     *  Late callbacks check their captured generation against the current value. */
+    let operationGeneration = 0;
+
+    /** Check if the given generation is still the current one.
+     *  Returns false when a newer operation has started (i.e., we were canceled).
+     *  @param {number} gen
+     */
+    function generationStillCurrent(gen) {
+        return gen === operationGeneration;
+    }
+
+    /** Reset UI to idle state regardless of what was running.
+     *  Safe to call multiple times (idempotent). */
+    function forceResetUI() {
+        editor.disableSubmit = false;
+        if (uiAPI.setBusy) uiAPI.setBusy(false);
+        if (uiAPI.enableInput) uiAPI.enableInput();
+        tui.setFocus(editor);
+        tui.requestRender();
+    }
+
+    /** Cancel the currently active operation, if any.
+     *  Returns true if something was actually canceled.
+     */
+    function cancelActiveOperation() {
+        // 1. Kill running bash process
+        if (activeBashProc) {
+            try {
+                if (activeBashProc.kill) activeBashProc.kill();
+            } catch (_e) { /* ignore */ }
+            activeBashProc = null;
+        }
+        // 2. Call registered operation cancel callback
+        if (activeOperationCancel) {
+            try {
+                activeOperationCancel();
+            } catch (_e) { /* ignore */ }
+            activeOperationCancel = null;
+            return true;
+        }
+        return false;
+    }
+
     // Chat session specific UI overrides/extensions
     uiAPI.setAgentInfo = (agentName, agentModel) => {
         setActiveAgentName(agentName);
@@ -475,6 +553,7 @@ export async function startInteractiveSession(initialUserRequest, onMessage, opt
     };
 
     uiAPI.appendImage = (base64, mimeType) => {
+        if (uiAPI.isOutputSuppressed?.()) return;
         const img = new Image(base64, mimeType, imageTheme, {
             maxWidthCells: 60,
             maxHeightCells: 20,
@@ -506,6 +585,16 @@ export async function startInteractiveSession(initialUserRequest, onMessage, opt
             // Ignore
         }
     };
+
+    /** Force-unset the focused component if it's a prompt block, so Esc
+     *  can return focus to the editor even when a choice/text prompt is active. */
+    function dismissActivePrompt() {
+        // The TUI tracks focus via setFocus; we just need to re-focus the editor.
+        // Any pending Promise from promptSelect/promptText will stay pending until
+        // it is settled by its own block callbacks, but after focus is returned the
+        // user sees a working editor immediately.
+        tui.setFocus(editor);
+    }
 
     // Handle Editor events
     editor.onSubmit = async (text) => {
@@ -540,6 +629,9 @@ export async function startInteractiveSession(initialUserRequest, onMessage, opt
                     }
                 }
 
+                // Generation gating: suppress late results if canceled
+                const thisGen = ++operationGeneration;
+
                 try {
                     const activeToolId = `bash-${Date.now()}`;
                     if (!isExcluded) {
@@ -557,6 +649,7 @@ export async function startInteractiveSession(initialUserRequest, onMessage, opt
                     const { exec } = await import("child_process");
 
                     let outputBuffer = "";
+                    let wasCanceled = false;
 
                     if (isExcluded) {
                         try {
@@ -581,18 +674,35 @@ export async function startInteractiveSession(initialUserRequest, onMessage, opt
                     }
 
                     const startTime = Date.now();
+                    /** @type {import("child_process").ChildProcess | null} */
+                    let proc = null;
+
+                    // Register cancel callback for this bash operation
+                    activeBashProc = {
+                        kill: () => {
+                            wasCanceled = true;
+                            if (proc) {
+                                try {
+                                    proc.kill("SIGKILL");
+                                } catch (_e) { /* ignore */ }
+                            }
+                            activeBashProc = null;
+                        },
+                    };
+
                     const code = await new Promise((resolve) => {
-                        const proc = exec(command, { cwd: Deno.cwd() });
+                        proc = exec(command, { cwd: Deno.cwd() });
+                        if (activeBashProc) activeBashProc.pid = proc.pid;
 
                         proc.stdout?.on("data", (data) => {
-                            if (!isExcluded) {
+                            if (!isExcluded && !wasCanceled) {
                                 toolBlock?.appendOutput(data.toString());
                                 outputBuffer += data.toString();
                             }
                         });
 
                         proc.stderr?.on("data", (data) => {
-                            if (!isExcluded) {
+                            if (!isExcluded && !wasCanceled) {
                                 toolBlock?.appendOutput(data.toString());
                                 outputBuffer += data.toString();
                             }
@@ -603,7 +713,7 @@ export async function startInteractiveSession(initialUserRequest, onMessage, opt
                         });
 
                         proc.on("error", (err) => {
-                            if (!isExcluded) {
+                            if (!isExcluded && !wasCanceled) {
                                 toolBlock?.appendOutput(`Error starting process: ${err.message}`);
                                 outputBuffer += `Error starting process: ${err.message}\n`;
                             } else {
@@ -613,8 +723,15 @@ export async function startInteractiveSession(initialUserRequest, onMessage, opt
                         });
                     });
 
-                    const durationMs = Date.now() - startTime;
-                    if (!isExcluded) {
+                    // After wait, check if we were canceled while waiting
+                    if (wasCanceled) {
+                        if (toolBlock) {
+                            toolBlock.appendOutput("\n[Harns] Command canceled by user.");
+                            toolBlock.endExecution(true, Date.now() - startTime);
+                        }
+                        uiAPI.appendSystemMessage("[Harns] Bash command canceled.");
+                    } else if (!isExcluded && generationStillCurrent(thisGen)) {
+                        const durationMs = Date.now() - startTime;
                         toolBlock?.endExecution(code !== 0, durationMs);
                         uiAPI.addToolResult?.({
                             id: activeToolId,
@@ -650,14 +767,14 @@ export async function startInteractiveSession(initialUserRequest, onMessage, opt
                         }
                     }
                 } catch (err) {
-                    uiAPI.appendSystemMessage(
-                        `Error executing bash command: ${err instanceof Error ? err.message : String(err)}`,
-                    );
+                    if (generationStillCurrent(thisGen)) {
+                        uiAPI.appendSystemMessage(
+                            `Error executing bash command: ${err instanceof Error ? err.message : String(err)}`,
+                        );
+                    }
                 } finally {
-                    editor.disableSubmit = false;
-                    if (uiAPI.setBusy) uiAPI.setBusy(false);
-                    if (uiAPI.enableInput) uiAPI.enableInput();
-                    tui.setFocus(editor);
+                    activeBashProc = null;
+                    forceResetUI();
                 }
                 return;
             }
@@ -671,10 +788,16 @@ export async function startInteractiveSession(initialUserRequest, onMessage, opt
             // dispatch actually handled via standard registry for TUI route now.
             // (The `agent` command is handled in the generic registry routing block below.)
 
+            const thisGen = ++operationGeneration;
+
             const { commandRegistry } = await import("../cmd/registry.js");
 
             if (CHAT_BUILTIN_SLASH_NAMES.has(command) && commandRegistry[command]) {
                 editor.disableSubmit = true;
+                // Register cancel hook: abort any agent session started by this command
+                activeOperationCancel = () => {
+                    abortActiveSession();
+                };
                 try {
                     await commandRegistry[command].execute(args, {
                         uiAPI,
@@ -685,14 +808,14 @@ export async function startInteractiveSession(initialUserRequest, onMessage, opt
                         originalHandleInput,
                     });
                 } catch (err) {
-                    uiAPI.appendSystemMessage(
-                        `Error: ${err instanceof Error ? err.message : String(err)}`,
-                    );
+                    if (generationStillCurrent(thisGen)) {
+                        uiAPI.appendSystemMessage(
+                            `Error: ${err instanceof Error ? err.message : String(err)}`,
+                        );
+                    }
                 } finally {
-                    editor.disableSubmit = false;
-                    if (uiAPI.setBusy) uiAPI.setBusy(false);
-                    if (uiAPI.enableInput) uiAPI.enableInput();
-                    tui.setFocus(editor);
+                    activeOperationCancel = null;
+                    forceResetUI();
                 }
             } else {
                 const template = promptTemplateByName.get(command);
@@ -744,9 +867,11 @@ export async function startInteractiveSession(initialUserRequest, onMessage, opt
                             sessionManager: getRootSessionManager() || undefined,
                         });
                     } catch (err) {
-                        uiAPI.appendSystemMessage(
-                            `Error: ${err instanceof Error ? err.message : String(err)}`,
-                        );
+                        if (generationStillCurrent(thisGen)) {
+                            uiAPI.appendSystemMessage(
+                                `Error: ${err instanceof Error ? err.message : String(err)}`,
+                            );
+                        }
                     } finally {
                         editor.disableSubmit = false;
                     }
@@ -759,6 +884,9 @@ export async function startInteractiveSession(initialUserRequest, onMessage, opt
             }
             return;
         }
+
+        // Generation gating
+        const thisGen = ++operationGeneration;
 
         editor.disableSubmit = true;
         editor.setText("");
@@ -782,13 +910,13 @@ export async function startInteractiveSession(initialUserRequest, onMessage, opt
                 uiAPI.appendSystemMessage("Error: No active agent handler or session manager.");
             }
         } catch (err) {
-            uiAPI.appendSystemMessage(
-                `Error: ${err instanceof Error ? err.message : String(err)}`,
-            );
+            if (generationStillCurrent(thisGen)) {
+                uiAPI.appendSystemMessage(
+                    `Error: ${err instanceof Error ? err.message : String(err)}`,
+                );
+            }
         } finally {
-            editor.disableSubmit = false;
-            if (uiAPI.setBusy) uiAPI.setBusy(false);
-            if (uiAPI.enableInput) uiAPI.enableInput();
+            forceResetUI();
         }
     };
 
@@ -801,15 +929,33 @@ export async function startInteractiveSession(initialUserRequest, onMessage, opt
     const originalHandleInput = editor.handleInput.bind(editor);
     /** @param {string} data */
     editor.handleInput = async (data) => {
-        // Intercept Esc to abort agent or cancel a pending plan review
+        // Intercept Esc: ALWAYS cancels whatever is going on
         if (matchesKey(data, Key.escape)) {
-            if (abortActiveSession()) {
-                uiAPI.appendSystemMessage("[Harns] Canceling operation...");
-                tui.requestRender();
-            } else if (cancelActivePlanReview()) {
-                uiAPI.appendSystemMessage("[Harns] Cancelling plan review...");
-                tui.requestRender();
+            // 1. Bump generation to suppress late results from whatever is running
+            ++operationGeneration;
+            // 2. Dismiss any active prompt overlay/block
+            dismissActivePrompt();
+            // 3. Cancel active operation (bash, registered callback, etc.)
+            const opCanceled = cancelActiveOperation();
+            // 4. Fall back to abort active agent session
+            const sessionAborted = abortActiveSession();
+            // 5. Fall back to cancel active plan review wait
+            const planCanceled = cancelActivePlanReview();
+            // 6. Always force-reset UI to idle
+            forceResetUI();
+            // 7. Give user feedback about what was canceled
+            if (opCanceled) {
+                uiAPI.appendSystemMessage("[Harns] Operation canceled.");
+            } else if (sessionAborted) {
+                uiAPI.appendSystemMessage("[Harns] Agent run canceled.");
+            } else if (planCanceled) {
+                uiAPI.appendSystemMessage("[Harns] Plan review canceled.");
+            } else {
+                // Nothing was actively running, but we still reset UI for safety
+                // (covers stale Thinking... state after provider errors)
+                uiAPI.appendSystemMessage("[Harns] Cleared.");
             }
+            tui.requestRender();
             return;
         }
 

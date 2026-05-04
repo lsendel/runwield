@@ -23,10 +23,12 @@ export function createUiApi(tui, messageList, spinner) {
     let spinnerInterval = null;
 
     let toolsExpanded = false;
+    let outputSuppressed = false;
 
     return {
         /** @param {string} text */
         appendUserMessage: (text) => {
+            if (outputSuppressed) return;
             const block = new UserPromptBlock(text);
             messageList.addChild(block);
             messageList.addChild(new Spacer(1));
@@ -35,6 +37,11 @@ export function createUiApi(tui, messageList, spinner) {
 
         /** @param {string} agentName */
         appendAgentMessageStart: (agentName) => {
+            if (outputSuppressed) {
+                return {
+                    appendText: () => {},
+                };
+            }
             const block = new AgentMessageBlock(agentName);
             messageList.addChild(block);
             messageList.addChild(new Spacer(1));
@@ -53,6 +60,7 @@ export function createUiApi(tui, messageList, spinner) {
          * @param {boolean} [isError=false]
          */
         appendSystemMessage: (text, isError = false) => {
+            if (outputSuppressed) return;
             const children = messageList.children;
             let lastBlockIndex = children.length - 1;
             if (lastBlockIndex >= 0 && children[lastBlockIndex] instanceof Spacer) {
@@ -79,6 +87,14 @@ export function createUiApi(tui, messageList, spinner) {
          * @param {string} argsStr
          */
         startToolExecution: (id, name, argsStr) => {
+            if (outputSuppressed) {
+                return {
+                    appendOutput: () => {},
+                    endExecution: () => {},
+                    bodyText: "",
+                    startTime: Date.now(),
+                };
+            }
             const block = new ToolExecutionBlock(name, argsStr);
             block.setExpanded(toolsExpanded);
             activeToolBlocks.set(id, block);
@@ -101,16 +117,19 @@ export function createUiApi(tui, messageList, spinner) {
         },
 
         requestRender: () => {
+            if (outputSuppressed) return;
             tui.requestRender();
         },
 
         advanceSpinner: () => {
+            if (outputSuppressed) return;
             spinner.advance();
             tui.requestRender();
         },
 
         /** @param {boolean} busy */
         setBusy: (busy) => {
+            if (outputSuppressed && busy) return;
             spinner.setBusy(busy, spinner.tasks);
             if (busy && !spinnerInterval) {
                 if (typeof setInterval !== "undefined") {
@@ -129,7 +148,7 @@ export function createUiApi(tui, messageList, spinner) {
         /** @param {Array<{task: number, assignee: string, description: string}>} tasks */
         setRunningTasks: (tasks) => {
             spinner.tasks = tasks;
-            tui.requestRender();
+            if (!outputSuppressed) tui.requestRender();
         },
 
         /**
@@ -195,6 +214,12 @@ export function createUiApi(tui, messageList, spinner) {
 
                 block.input.onEscape = () => block.settle(null);
             });
+        },
+
+        isOutputSuppressed: () => outputSuppressed,
+
+        suppressOutput: () => {
+            outputSuppressed = true;
         },
 
         // Stubs that chat-session sets dynamically

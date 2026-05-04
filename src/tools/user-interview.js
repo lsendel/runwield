@@ -7,6 +7,8 @@ import { StringEnum, Type } from "@mariozechner/pi-ai";
 import { defineTool } from "@mariozechner/pi-coding-agent";
 import { promptText, select } from "../shared/prompts.js";
 
+const OTHER_VALUE = "other";
+
 const questionIdSchema = Type.String({
     minLength: 1,
     maxLength: 64,
@@ -18,6 +20,7 @@ const yesNoQuestionSchema = Type.Object({
     type: StringEnum(["yes_no"]),
     prompt: Type.String({ minLength: 1, maxLength: 400, description: "Question text shown to the user." }),
     default: Type.Optional(Type.Boolean({ description: "Optional recommended default answer." })),
+    allowOther: Type.Optional(Type.Boolean({ description: "Allow user to provide an 'Other' open-ended answer." })),
 }, { additionalProperties: false });
 
 const textQuestionSchema = Type.Object({
@@ -47,6 +50,7 @@ const multipleChoiceQuestionSchema = Type.Object({
     default: Type.Optional(
         Type.String({ minLength: 1, maxLength: 120, description: "Optional default choice value." }),
     ),
+    allowOther: Type.Optional(Type.Boolean({ description: "Allow user to provide an 'Other' open-ended answer." })),
 }, { additionalProperties: false });
 
 const interviewQuestionSchema = Type.Union([
@@ -78,6 +82,7 @@ const interviewParametersSchema = Type.Object({
  *   type: "yes_no",
  *   prompt: string,
  *   default?: boolean,
+ *   allowOther?: boolean,
  * }} YesNoInterviewQuestion
  */
 
@@ -99,6 +104,7 @@ const interviewParametersSchema = Type.Object({
  *   prompt: string,
  *   choices: InterviewChoice[],
  *   default?: string,
+ *   allowOther?: boolean,
  * }} MultipleChoiceInterviewQuestion
  */
 
@@ -115,7 +121,7 @@ const interviewParametersSchema = Type.Object({
  *   answeredCount: number,
  *   remainingCount: number,
  *   canceledAt?: number,
- *   answers: Array<{index: number, id?: string, type: "yes_no" | "text" | "multiple_choice", prompt: string, value: boolean | string, valueLabel?: string}>,
+ *   answers: Array<{index: number, id?: string, type: "yes_no" | "text" | "multiple_choice", prompt: string, value: boolean | string, valueLabel?: string, otherText?: string}>,
  *   errors?: InterviewError[]
  * }} InterviewResultDetails
  */
@@ -128,9 +134,9 @@ export function createUserInterviewTool(uiAPI) {
         name: "user_interview",
         label: "User Interview",
         description:
-            "Ask the user 1-3 structured clarification questions (yes_no, text, multiple_choice) and receive ordered answers.",
+            "Ask the user 1-3 structured clarification questions (yes_no, text, multiple_choice) and receive ordered answers. Support optional 'allowOther' for yes_no and multiple_choice to collect open-ended follow-up text.",
         promptSnippet:
-            "user_interview(question|questions): Ask one or a small 1-3 question batch before finalizing planning decisions.",
+            "user_interview(question|questions): Ask one or a small 1-3 question batch before finalizing planning decisions. Use 'text' for fully open-ended questions, or 'allowOther: true' for yes_no/multiple_choice.",
         parameters: interviewParametersSchema,
         async execute(_toolCallId, params) {
             const normalized = normalizeBatch(
@@ -228,6 +234,7 @@ export function createUserInterviewTool(uiAPI) {
                     prompt: question.prompt,
                     value: answer.value,
                     valueLabel: answer.valueLabel,
+                    otherText: answer.otherText,
                 });
             }
 
@@ -348,6 +355,15 @@ function validateBatch(questions) {
                 values.add(value);
             }
 
+            if (q.allowOther && values.has(OTHER_VALUE)) {
+                errors.push({
+                    code: "SENTINEL_COLLISION",
+                    message: `The value "${OTHER_VALUE}" is reserved when allowOther is enabled.`,
+                    questionIndex: idx,
+                    questionId: q.id,
+                });
+            }
+
             if (q.default && !values.has(String(q.default).trim())) {
                 errors.push({
                     code: "DEFAULT_NOT_IN_CHOICES",
@@ -365,7 +381,7 @@ function validateBatch(questions) {
 /**
  * @param {InterviewQuestion} question
  * @param {import('../shared/ui/types.js').UiAPI | undefined} uiAPI
- * @returns {Promise<{ canceled?: true, value?: string | boolean, valueLabel?: string, error?: InterviewError }>}
+ * @returns {Promise<{ canceled?: true, value?: string | boolean, valueLabel?: string, otherText?: string, error?: InterviewError }>}
  */
 async function askQuestion(question, uiAPI) {
     if (question.type === "yes_no") {
@@ -374,11 +390,36 @@ async function askQuestion(question, uiAPI) {
             { value: "no", label: question.default === false ? "No (recommended)" : "No" },
         ];
 
+        if (question.allowOther) {
+            options.push({ value: OTHER_VALUE, label: "Other" });
+        }
+
         const selected = uiAPI?.promptSelect
             ? await uiAPI.promptSelect(question.prompt, options)
             : await select(question.prompt, options);
 
         if (selected === null) return { canceled: true };
+
+        if (selected === OTHER_VALUE) {
+            const followUpPrompt = `Please specify your answer for: "${question.prompt}"`;
+            const otherText = uiAPI?.promptText
+                ? await uiAPI.promptText(followUpPrompt, { allowEmpty: false })
+                : await promptText(followUpPrompt, { allowEmpty: false });
+
+            if (otherText === null) return { canceled: true };
+            const normalized = otherText.trim();
+            if (!normalized) {
+                return {
+                    error: {
+                        code: "EMPTY_ANSWER",
+                        message: "The 'Other' answer cannot be empty.",
+                        questionId: question.id,
+                    },
+                };
+            }
+            return { value: OTHER_VALUE, valueLabel: "Other", otherText: normalized };
+        }
+
         if (selected !== "yes" && selected !== "no") {
             return {
                 error: {
@@ -402,11 +443,35 @@ async function askQuestion(question, uiAPI) {
             }))
         );
 
+        if (question.allowOther) {
+            options.push({ value: OTHER_VALUE, label: "Other" });
+        }
+
         const selected = uiAPI?.promptSelect
             ? await uiAPI.promptSelect(question.prompt, options)
             : await select(question.prompt, options);
 
         if (selected === null) return { canceled: true };
+
+        if (selected === OTHER_VALUE) {
+            const followUpPrompt = `Please specify your answer for: "${question.prompt}"`;
+            const otherText = uiAPI?.promptText
+                ? await uiAPI.promptText(followUpPrompt, { allowEmpty: false })
+                : await promptText(followUpPrompt, { allowEmpty: false });
+
+            if (otherText === null) return { canceled: true };
+            const normalized = otherText.trim();
+            if (!normalized) {
+                return {
+                    error: {
+                        code: "EMPTY_ANSWER",
+                        message: "The 'Other' answer cannot be empty.",
+                        questionId: question.id,
+                    },
+                };
+            }
+            return { value: OTHER_VALUE, valueLabel: "Other", otherText: normalized };
+        }
 
         const selectedOption = options.find((/** @type {{ value: string }} */ opt) => opt.value === selected);
         if (!selectedOption) {

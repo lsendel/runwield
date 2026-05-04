@@ -44,6 +44,8 @@
  *   toggleToolOutputsExpanded?: () => void,
  *   addToolInvoked?: (event: import('@mariozechner/pi-coding-agent').SessionEvent) => void,
  *   addToolResult?: (event: import('@mariozechner/pi-coding-agent').SessionEvent) => void,
+ *   isOutputSuppressed?: () => boolean,
+ *   suppressOutput?: () => void,
  * }} UiAPI
  */
 
