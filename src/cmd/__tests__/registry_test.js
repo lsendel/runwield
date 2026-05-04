@@ -1,5 +1,5 @@
 import { assertEquals } from "@std/assert";
-import { getCliCommandDefinitions, getCommandDefinition } from "./registry.js";
+import { getCliCommandDefinitions, getCommandDefinition } from "../registry.js";
 
 Deno.test("getCommandDefinition resolves alias", () => {
     const command = getCommandDefinition("agents");
@@ -8,6 +8,6 @@ Deno.test("getCommandDefinition resolves alias", () => {
 
 Deno.test("getCliCommandDefinitions excludes slash-only commands", () => {
     const commands = getCliCommandDefinitions();
-    assertEquals(commands.some((c) => c.name === "export"), false);
-    assertEquals(commands.some((c) => c.name === "router"), true);
+    assertEquals(commands.some((command) => command.name === "export"), false);
+    assertEquals(commands.some((command) => command.name === "router"), true);
 });

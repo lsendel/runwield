@@ -9,17 +9,25 @@ import { listPlans } from "../../plan-store.js";
 import { printCommandHelp } from "../help/index.js";
 
 /**
+ * @typedef {Object} CommandDependencies
+ * @property {typeof parseArgs} [parseArgs]
+ * @property {typeof listPlans} [listPlans]
+ * @property {typeof printCommandHelp} [printCommandHelp]
+ */
+
+/**
  * Handle `plans` command.
  *
  * @param {string[]} argv
  * @param {import('../registry.js').CommandContext & { __testDeps?: { parseArgs?: typeof parseArgs, listPlans?: typeof listPlans, printCommandHelp?: typeof printCommandHelp }}} [options]
  */
 export async function runPlansCommand(argv, options = {}) {
-    const deps = /** @type {{ parseArgs?: typeof parseArgs, listPlans?: typeof listPlans, printCommandHelp?: typeof printCommandHelp }} */
-        ((/** @type {any} */ (options)).__testDeps || {});
-    const parseArgsFn = deps.parseArgs || parseArgs;
-    const listPlansFn = deps.listPlans || listPlans;
-    const printCommandHelpFn = deps.printCommandHelp || printCommandHelp;
+    const deps = /** @type {CommandDependencies} */ options.__testDeps || {};
+    const {
+        parseArgs: parseArgsFn = parseArgs,
+        listPlans: listPlansFn = listPlans,
+        printCommandHelp: printCommandHelpFn = printCommandHelp,
+    } = deps;
 
     const parsed = parseArgsFn(argv, {
         boolean: ["help"],

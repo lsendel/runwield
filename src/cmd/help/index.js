@@ -8,6 +8,13 @@ import { CLI_BIN } from "../../constants.js";
 import { getCliCommandDefinitions, getCommandDefinition } from "../registry.js";
 
 /**
+ * @typedef {Object} CommandDependencies
+ * @property {typeof parseArgs} [parseArgs]
+ * @property {typeof printCommandHelp} [printCommandHelp]
+ * @property {(code: number) => never} [exit]
+ */
+
+/**
  * Print global CLI usage/help text.
  */
 export function printGlobalHelp() {
@@ -59,22 +66,30 @@ export function printCommandHelp(commandName) {
  * Run help command
  *
  * @param {string[]} argv
+ * @param {{ __testDeps?: CommandDependencies }} [options]
  */
-export async function runHelpCommand(argv) {
+export async function runHelpCommand(argv, options = {}) {
     await Promise.resolve();
 
-    const parsed = parseArgs(argv, {
+    const deps = /** @type {CommandDependencies} */ ((/** @type {any} */ (options)).__testDeps || {});
+    const {
+        parseArgs: parseArgsFn = parseArgs,
+        printCommandHelp: printCommandHelpFn = printCommandHelp,
+        exit: exitFn = Deno.exit,
+    } = deps;
+
+    const parsed = parseArgsFn(argv, {
         boolean: ["help"],
         alias: { h: "help" },
     });
 
     const [commandName] = parsed._.map(String);
 
-    const found = printCommandHelp(commandName);
+    const found = printCommandHelpFn(commandName);
     if (!found && commandName) {
         console.error(`[Harns] Unknown command for help: ${commandName}`);
         console.log();
-        Deno.exit(1);
+        exitFn(1);
     }
 
     !commandName && printGlobalHelp();

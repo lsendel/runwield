@@ -27,10 +27,11 @@ Deno.test("runRouterCommand prints help when userRequest is help", async () => {
         __testDeps: {
             printCommandHelp: (/** @type {string} */ name) => {
                 helpCommand = name;
+                return true;
             },
             startInteractiveSession: () => {
                 started = true;
-                return Promise.resolve(undefined);
+                return Promise.resolve(/** @type {import('../../shared/workflow/workflow.js').UiAPI} */ ({}));
             },
         },
     });
@@ -51,11 +52,11 @@ Deno.test("runRouterCommand starts session with provided request", async () => {
             startInteractiveSession: (
                 /** @type {string | null} */ userRequest,
                 /** @type {unknown} */ _handler,
-                /** @type {{ sessionStartMode?: string }} */ opts,
+                opts = /** @type {{ sessionStartMode?: "new" | "continue" } | undefined} */ (undefined),
             ) => {
                 initial = userRequest;
                 mode = opts?.sessionStartMode || null;
-                return Promise.resolve(undefined);
+                return Promise.resolve(/** @type {import('../../shared/workflow/workflow.js').UiAPI} */ ({}));
             },
         },
     });

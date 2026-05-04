@@ -24,12 +24,23 @@ function buildDefaultExportPath(sessionStartIso) {
 }
 
 /**
+ * @typedef {Object} CommandDependencies
+ * @property {typeof exportRootSessionToHtml} [exportRootSessionToHtml]
+ * @property {typeof exportRootSessionToJsonl} [exportRootSessionToJsonl]
+ */
+
+/**
  * Handle `/export` command (slash-only).
  *
  * @param {string[]} argv
- * @param {import('../registry.js').CommandContext} [options]
+ * @param {import('../registry.js').CommandContext & { __testDeps?: CommandDependencies }} [options]
  */
 export async function runExportCommand(argv, options = {}) {
+    const deps = /** @type {CommandDependencies} */ ((/** @type {any} */ (options)).__testDeps || {});
+    const {
+        exportRootSessionToHtml: exportRootSessionToHtmlFn = exportRootSessionToHtml,
+        exportRootSessionToJsonl: exportRootSessionToJsonlFn = exportRootSessionToJsonl,
+    } = deps;
     const { uiAPI, editor, sessionManager, sessionStartedAt } = options;
     if (!uiAPI || !editor || !sessionManager) {
         return;
@@ -42,10 +53,10 @@ export async function runExportCommand(argv, options = {}) {
 
     try {
         if (outputPath.toLowerCase().endsWith(".jsonl")) {
-            const filePath = exportRootSessionToJsonl(sessionManager, outputPath);
+            const filePath = exportRootSessionToJsonlFn(sessionManager, outputPath);
             uiAPI.appendSystemMessage(`Session exported to: ${filePath}`);
         } else {
-            const filePath = await exportRootSessionToHtml(sessionManager, outputPath);
+            const filePath = await exportRootSessionToHtmlFn(sessionManager, outputPath);
             uiAPI.appendSystemMessage(`Session exported to: ${filePath}`);
         }
     } catch (error) {

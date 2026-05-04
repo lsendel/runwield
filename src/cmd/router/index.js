@@ -17,17 +17,24 @@ import { createDirectAgentHandler } from "../../shared/direct-agent.js";
 import { buildRepairPrompt } from "../command-helpers.js";
 
 /**
+ * @typedef {Object} RunRouterCommandDeps
+ * @property {typeof printCommandHelp} [printCommandHelp]
+ * @property {typeof startInteractiveSession} [startInteractiveSession]
+ */
+
+/**
  * Handle router/default command.
  *
  * @param {string[]} argv
- * @param {import('../registry.js').CommandContext & { __testDeps?: Record<string, unknown> }} [options]
+ * @param {import('../registry.js').CommandContext & { __testDeps?: RunRouterCommandDeps }} [options]
  */
 export async function runRouterCommand(argv, options = {}) {
+    const deps = /** @type {RunRouterCommandDeps} */ ((/** @type {any} */ (options)).__testDeps || {});
+    const {
+        printCommandHelp: printCommandHelpFn = printCommandHelp,
+        startInteractiveSession: startInteractiveSessionFn = startInteractiveSession,
+    } = deps;
     const userRequest = argv.join(" ").trim();
-    const testDeps = /** @type {Record<string, unknown>} */ ((/** @type {any} */ (options)).__testDeps || {});
-    const printCommandHelpFn = /** @type {(name: string) => void} */ (testDeps.printCommandHelp || printCommandHelp);
-    const startInteractiveSessionFn =
-        /** @type {typeof startInteractiveSession} */ (testDeps.startInteractiveSession || startInteractiveSession);
 
     if (userRequest === "help") {
         printCommandHelpFn(COMMAND_NAMES.ROUTER);

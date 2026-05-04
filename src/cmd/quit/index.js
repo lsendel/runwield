@@ -1,16 +1,24 @@
 import { stopTUI } from "../../shared/tui.js";
 
 /**
+ * @typedef {Object} CommandDependencies
+ * @property {typeof stopTUI} [stopTUI]
+ * @property {typeof setTimeout} [setTimeout]
+ * @property {typeof Deno.exit} [exit]
+ */
+
+/**
  * @param {string[]} _argv
- * @param {import('../registry.js').CommandContext & { __testDeps?: { stopTUI?: typeof stopTUI, setTimeout?: typeof setTimeout, exit?: typeof Deno.exit } }} [options]
+ * @param {import('../registry.js').CommandContext & { __testDeps?: CommandDependencies }} [options]
  */
 async function runQuitCommand(_argv, options = {}) {
+    const deps = /** @type {CommandDependencies} */ ((/** @type {any} */ (options)).__testDeps || {});
+    const {
+        stopTUI: stopTUIFn = stopTUI,
+        setTimeout: setTimeoutFn = setTimeout,
+        exit: exitFn = Deno.exit,
+    } = deps;
     const { editor, tui } = options;
-    const deps = /** @type {{ stopTUI?: typeof stopTUI, setTimeout?: typeof setTimeout, exit?: typeof Deno.exit }} */
-        ((/** @type {any} */ (options)).__testDeps || {});
-    const stopTUIFn = deps.stopTUI || stopTUI;
-    const setTimeoutFn = deps.setTimeout || setTimeout;
-    const exitFn = deps.exit || Deno.exit;
 
     if (!editor || !tui) return;
 

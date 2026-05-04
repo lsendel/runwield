@@ -10,17 +10,27 @@ import { printCommandHelp } from "../help/index.js";
 import { ensureMnemosyneBinary } from "../../shared/runtime-preflight.js";
 
 /**
+ * @typedef {Object} CommandDependencies
+ * @property {typeof parseArgs} [parseArgs]
+ * @property {typeof printCommandHelp} [printCommandHelp]
+ * @property {typeof ensureMnemosyneBinary} [ensureMnemosyneBinary]
+ * @property {typeof runAgentSession} [runAgentSession]
+ */
+
+/**
  * Handle `sleep` command.
  *
  * @param {string[]} argv
+ * @param {{ __testDeps?: CommandDependencies }} [options]
  */
 export async function runSleepCommand(argv, options = {}) {
-    const deps = /** @type {Record<string, unknown>} */ ((/** @type {any} */ (options)).__testDeps || {});
-    const parseArgsFn = /** @type {typeof parseArgs} */ (deps.parseArgs || parseArgs);
-    const printCommandHelpFn = /** @type {typeof printCommandHelp} */ (deps.printCommandHelp || printCommandHelp);
-    const ensureMnemosyneBinaryFn =
-        /** @type {typeof ensureMnemosyneBinary} */ (deps.ensureMnemosyneBinary || ensureMnemosyneBinary);
-    const runAgentSessionFn = /** @type {typeof runAgentSession} */ (deps.runAgentSession || runAgentSession);
+    const deps = /** @type {CommandDependencies} */ ((/** @type {any} */ (options)).__testDeps || {});
+    const {
+        parseArgs: parseArgsFn = parseArgs,
+        printCommandHelp: printCommandHelpFn = printCommandHelp,
+        ensureMnemosyneBinary: ensureMnemosyneBinaryFn = ensureMnemosyneBinary,
+        runAgentSession: runAgentSessionFn = runAgentSession,
+    } = deps;
 
     const parsed = parseArgsFn(argv, {
         boolean: ["help"],

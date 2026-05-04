@@ -9,24 +9,33 @@ import { parseProviderModel } from "../../shared/models/model-validation.js";
 export { getModelCompletions } from "./getArgumentCompletions.js";
 
 /**
+ * @typedef {Object} CommandDependencies
+ * @property {typeof getModelRegistry} [getModelRegistry]
+ * @property {typeof parseProviderModel} [parseProviderModel]
+ * @property {typeof setActiveModel} [setActiveModel]
+ */
+
+/**
  * Handle the models command (`hns model` and `/model`).
  *
  * @param {string[]} argv
- * @param {import('../registry.js').CommandContext & { __testDeps?: Record<string, unknown> }} [options]
+ * @param {import('../registry.js').CommandContext & { __testDeps?: CommandDependencies }} [options]
  */
 export async function runModelsCommand(argv, options = {}) {
+    const deps = /** @type {CommandDependencies} */ ((/** @type {any} */ (options)).__testDeps || {});
+    const {
+        getModelRegistry: getModelRegistryFn = getModelRegistry,
+        parseProviderModel: parseProviderModelFn = parseProviderModel,
+        setActiveModel: setActiveModelFn = setActiveModel,
+    } = deps;
     const { uiAPI, editor } = options;
-    const testDeps = /** @type {Record<string, unknown>} */ ((/** @type {any} */ (options)).__testDeps || {});
-    const getModelRegistryFn = /** @type {typeof getModelRegistry} */ (testDeps.getModelRegistry || getModelRegistry);
-    const parseProviderModelFn =
-        /** @type {typeof parseProviderModel} */ (testDeps.parseProviderModel || parseProviderModel);
-    const setActiveModelFn = /** @type {typeof setActiveModel} */ (testDeps.setActiveModel || setActiveModel);
 
-    let targetModel = argv[0]?.trim();
+    let targetModel;
+    const firstArg = argv[0]?.trim();
+    const modelRegistry = getModelRegistryFn();
 
-    if (!targetModel) {
+    if (!firstArg) {
         if (uiAPI && editor) {
-            const modelRegistry = getModelRegistryFn();
             const models = modelRegistry.getAvailable();
 
             if (models.length === 0) {
@@ -44,65 +53,54 @@ export async function runModelsCommand(argv, options = {}) {
                     description: model.name,
                 }));
 
-            const chosen = await uiAPI.promptSelect("Switch model:", modelOptions);
-            if (!chosen) {
+            const choice = await uiAPI.promptSelect("Switch model:", modelOptions);
+            if (!choice) {
                 editor.setText("");
                 editor.disableSubmit = false;
                 return;
             }
 
-            targetModel = chosen;
-            const modelObj = models.find((model) =>
-                `${model.provider}/${model.id}` === targetModel || model.id === targetModel
-            );
+            targetModel = models.find((model) => `${model.provider}/${model.id}` === choice || model.id === choice);
 
-            if (!modelObj) {
-                uiAPI.appendSystemMessage(`Unknown model: ${targetModel}.`);
+            if (!targetModel) {
+                uiAPI.appendSystemMessage(`Unknown model: ${choice}.`);
                 editor.setText("");
                 editor.disableSubmit = false;
                 return;
             }
-
-            setActiveModelFn(modelObj.id, modelObj.provider);
-            uiAPI.appendSystemMessage(`Switched model to ${modelObj.provider}/${modelObj.id}`);
-            editor.setText("");
-            editor.disableSubmit = false;
-            return;
         } else {
             console.log("Usage: hns model <provider>/<model_id>");
             return;
         }
-    }
-
-    const parsedArgs = parseProviderModelFn(targetModel);
-    if (!parsedArgs.ok) {
-        if (uiAPI) {
-            uiAPI.appendSystemMessage("Invalid model format. Use /model to switch.");
-        } else {
-            console.log("Invalid model format. Use provider/id.");
+    } else {
+        const parsedArgs = parseProviderModelFn(firstArg);
+        if (!parsedArgs.ok) {
+            if (uiAPI) {
+                uiAPI.appendSystemMessage("Invalid model format. Use /model to switch.");
+            } else {
+                console.log("Invalid model format. Use provider/id.");
+            }
+            return;
         }
-        return;
-    }
 
-    const modelRegistry = getModelRegistryFn();
-    const modelObj = modelRegistry.find(parsedArgs.provider, parsedArgs.id);
-
-    // Provide some feedback to the user on success/failure within the correct interface
-    if (!modelObj) {
-        if (uiAPI) {
-            uiAPI.appendSystemMessage(`Unknown model: ${targetModel}. Use /model to switch.`);
-        } else {
-            console.log(`Unknown model: ${targetModel}`);
+        targetModel = modelRegistry.find(parsedArgs.provider, parsedArgs.id);
+        // Provide some feedback to the user on success/failure within the correct interface
+        if (!targetModel) {
+            if (uiAPI) {
+                uiAPI.appendSystemMessage(`Unknown model: ${firstArg}. Use /model to switch.`);
+            } else {
+                console.log(`Unknown model: ${firstArg}`);
+            }
+            return;
         }
-        return;
     }
 
-    setActiveModelFn(modelObj.id, modelObj.provider);
+    setActiveModelFn(targetModel.id, targetModel.provider);
 
     if (uiAPI) {
-        uiAPI.appendSystemMessage(`Switched model to ${modelObj.provider}/${modelObj.id}`);
+        uiAPI.appendSystemMessage(`Switched model to ${targetModel.provider}/${targetModel.id}`);
     } else {
-        console.log(`Switched model to ${modelObj.provider}/${modelObj.id}`);
+        console.log(`Switched model to ${targetModel.provider}/${targetModel.id}`);
     }
 
     await Promise.resolve();

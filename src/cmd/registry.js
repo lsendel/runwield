@@ -30,6 +30,7 @@ const bin = (...parts) => [CLI_BIN, ...parts].join(" ");
  * @property {import('../shared/ui/types.js').TuiAPI} [tui]
  * @property {(data: string) => void | Promise<void>} [originalHandleInput]
  * @property {"new" | "continue"} [sessionStartMode]
+ * @property {Record<string, unknown>} [__testDeps]
  */
 
 /**
@@ -107,7 +108,7 @@ export const commandRegistry = {
         ],
         execute: runModelsCommand,
         isSlash: true,
-        isCli: true,
+        isCli: false,
         getArgumentCompletions: getModelCompletions,
     },
     [COMMAND_NAMES.RESUME]: {
