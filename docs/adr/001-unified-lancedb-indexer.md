@@ -1,64 +1,119 @@
-# 1. Unified Local Semantic Indexer (Code + Memory)
+# ADR-001: Unified Local Semantic Indexer (Code + Memory)
 
 ## Status
 
-Accepted
+Accepted (revised)
 
 ## Context
 
-Harns operates on a strict principle of Token Parsimony and fast TTFT (Time to First Token). As the system scales to
-handle `PROJECT` level classifications and large legacy codebases, injecting entire files into the context window for
-`QUICK_FIX` or `FEATURE` requests is unsustainable. We need a way to provide agents with hyper-relevant code snippets
-(Context Handoff).
+Harns needs two capabilities for its agents to work effectively:
 
-Simultaneously, Harns relies on an external memory system, Mnemosyne, to store and retrieve architectural decisions,
-user preferences, and core project DNA. Previously, Mnemosyne was conceived as a separate pipeline/binary. Running two
-separate AI pipelines means paying the RAM and cold-start penalty for ONNX models twice, complicating deployment, and
-duplicating the vector storage logic.
+1. **Semantic code search** — agents should find relevant code by concept ("how are passwords hashed?") without
+   exhaustive `grep`/`read` exploration. This reduces token waste and improves triage quality.
+2. **Persistent memory** — agents need to recall project decisions, user preferences, and architectural context across
+   sessions.
+
+Previously, memory was handled by an external Go binary (`mnemosyne`) invoked via subprocess. This worked for
+sentence-length memories but has fundamental limitations:
+
+- Mnemosyne's document model (2 sentences max) is not optimized for code chunks (50-200 lines).
+- Subprocess overhead per operation (one `mnemosyne add` call per chunk) makes bulk indexing slow.
+- No incremental upsert — must delete + re-add on file change.
+- Two separate systems (mnemosyne for memory, nothing for code) means duplicated model loading and deployment friction.
 
 ## Decision
 
-We will absorb the Mnemosyne memory system directly into the Harns binary and build a **Unified Local Semantic Indexer**
-using LanceDB.
+Build a **unified in-process semantic engine** natively in Harns that handles both memory and codebase indexing. This
+replaces the external `mnemosyne` Go binary entirely. The engine lives at `src/semantic-engine/` and tools are standard
+`defineTool()` exports in `src/tools/`.
 
-The architecture will rely entirely on local execution natively within Deno, with zero cloud dependencies or external
-Python environments:
+### Technology Stack
 
-1. **Storage Engine (`@lancedb/lancedb`)**:
-   - A multi-table LanceDB instance.
-   - **Local Scope:** `.hns/index/` will store ephemeral `code_chunks` (rebuilt on file changes) and `project_memories`.
-   - **Global Scope:** `~/.config/harns/index/` will store persistent `global_memories`.
+| Component | Technology | Rationale |
+|---|---|---|
+| Vector storage | `@lancedb/lancedb` (npm) | Works in Deno, fast batch upserts, SQL-like filter queries, Rust bindings |
+| Embeddings | `Snowflake/snowflake-arctic-embed-m-v1.5` via `@huggingface/transformers` | 256-dim (Matryoshka truncation), top of benchmarks for small open-weight models |
+| Reranking | `cross-encoder/ms-marco-MiniLM-L-6-v2` via `@huggingface/transformers` | High precision, same model mnemosyne used |
+| AST chunking | `tree-sitter` (native N-API via npm) | Multi-language structural parsing (JS, TS, Python, Go, Rust) |
 
-2. **Embedding & Re-ranking (`npm:@huggingface/transformers`)**:
-   - We will run ONNX models natively via transformers.js.
-   - **Recall (Embeddings):** `Xenova/snowflake-arctic-embed-m-v1.5` (256-dim). The 256-dimensional space is the optimal
-     sweet spot for speed and disk footprint in a single-repo context.
-   - **Precision (Cross-Encoder):** `Xenova/ms-marco-MiniLM-L-6-v2`. Reranks the top 50 vector results to yield the top
-     3-5 hyper-relevant snippets, ensuring the LLM only receives high-signal context.
+All verified working in Deno via PoC testing. Requires `"nodeModulesDir": "auto"` in deno.json for tree-sitter's native
+N-API addon.
 
-3. **Structural Chunking (`npm:web-tree-sitter`)**:
-   - Instead of naive character-count chunking, we will use Tree-sitter WASM to parse the AST.
-   - Files will be chunked by structural boundaries (functions, classes, interfaces) to preserve semantic integrity.
+### Architecture
 
-4. **Lifecycle & Opt-in**:
-   - The indexer will run silently in the background using `Deno.watchFs` to debounce and re-embed modified files.
-   - To respect system resources, Harns will prompt the user to initialize the index on first run. If declined, Harns
-     degrades gracefully to standard LLM file reading (with warnings for large files).
+```
+src/semantic-engine/
+  engine.js         # Singleton: model loading, embed(), rerank()
+  db.js             # LanceDB connection manager (local + global tables)
+  chunker.js        # Tree-sitter AST chunking + fallback strategies
+  scanner.js        # File discovery (gitignore-aware, mtime tracking)
+  watcher.js        # Deno.watchFs file watcher with debounce + batch queue
+
+src/tools/
+  codebase-search.js   # Semantic code search tool
+  memory-recall.js     # Project + global memory recall
+  memory-store.js      # Memory creation
+  memory-delete.js     # Memory deletion by ID
+  memory-list.js       # Full dump for sleep consolidation
+```
+
+No extension pattern — lifecycle wiring (engine init, core memory injection, watcher startup) is handled directly in
+`src/shared/session/session.js`.
+
+### Retrieval Pipeline
+
+```
+Query → embed with snowflake (256-dim) → top-20 ANN from LanceDB → rerank with ms-marco → threshold filter → return up to 5
+```
+
+No BM25/FTS index. The agent already has `grep` for exact keyword matching — the two tools serve different purposes:
+- `grep` = "I know the identifier/string I'm looking for"
+- `codebase_search` = "I know what concept I need but not where it lives"
+
+### Disk Layout
+
+| Scope | Path |
+|---|---|
+| Project code index | `.hns/index/code_chunks/` |
+| Project memories | `.hns/index/memories/` |
+| Global memories | `~/.hns/index/memories/` |
+| Model cache | `~/.hns/models/` (shared across projects) |
+
+### Onboarding Lifecycle
+
+- First run: prompt inside TUI "Would you like to index this codebase?" — blocks input until answered.
+- Yes → full index with progress bar. No → noindex marker at `~/.hns/onboarding/<hashed-cwd>/noindex`.
+- Post-onboarding: incremental re-indexing on session start (mtime diffing) + live file watcher during session.
+- `hns init` command for explicit (re-)indexing.
+
+### Chunking Strategy
+
+- **Tree-sitter languages** (JS, TS, Python, Go, Rust): Extract structural AST nodes (functions, classes, methods,
+  interfaces, type declarations). Chunk size limit: 100 lines. Large classes split at method boundaries; large functions
+  split into overlapping windows.
+- **Fallback** (unknown languages): Line-based heuristic chunking.
+- **Non-code** (.md, .yaml): Section-based splitting.
+
+### Model Loading
+
+- Embedding model: loaded eagerly on session start (needed for watcher + core memory queries).
+- Cross-encoder: loaded lazily on first search/recall call.
 
 ## Consequences
 
 ### Positive
 
-- **Extreme Speed:** Running everything in-process via Deno and LanceDB Rust bindings eliminates network I/O and local
-  HTTP overhead.
-- **Token Efficiency:** Agents receive exact line-numbered snippets instead of 5,000-line monoliths.
-- **Maintainer Velocity:** A single codebase and binary (`hns`) handles routing, planning, codebase search, and memory
-  retrieval.
-- **Privacy:** 100% local context. No proprietary code is sent to third-party embedding APIs.
+- **Single binary, single process** — no external dependency on mnemosyne or any other binary for core functionality.
+- **Token efficiency** — agents receive exact, structurally-bounded snippets instead of whole files.
+- **Multi-language** — tree-sitter grammars are additive; new languages are just an npm package away.
+- **Incremental** — only changed files are re-indexed; startup stays fast even for large repos.
+- **Privacy** — 100% local. No code sent to embedding APIs.
 
 ### Negative
 
-- **Initial Payload:** The first initialization will require downloading the ONNX models (~100-200MB) to the user's
-  local cache.
-- **Background CPU:** The `Deno.watchFs` listener and re-indexing pipeline will consume some idle CPU resources during
-  active development, requiring careful debouncing logic.
+- **Initial model download** — ~200MB of ONNX models on first use (one-time).
+- **nodeModulesDir** — tree-sitter requires `"nodeModulesDir": "auto"`, adding a `node_modules/` folder.
+- **CPU usage** — background watcher + embedding consumes idle CPU during active sessions (mitigated by debouncing and
+  batch queue limits).
+- **`deno compile` complexity** — native N-API addons don't bundle into compiled binary. Solved via `install.sh`
+  downloading runtime deps to `~/.hns/lib/`.
