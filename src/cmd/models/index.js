@@ -12,14 +12,21 @@ export { getModelCompletions } from "./getArgumentCompletions.js";
  * Handle the models command (`hns model` and `/model`).
  *
  * @param {string[]} argv
- * @param {import('../registry.js').CommandContext} [options]
+ * @param {import('../registry.js').CommandContext & { __testDeps?: Record<string, unknown> }} [options]
  */
 export async function runModelsCommand(argv, options = {}) {
     const { uiAPI, editor } = options;
+    const testDeps = /** @type {Record<string, unknown>} */ ((/** @type {any} */ (options)).__testDeps || {});
+    const getModelRegistryFn = /** @type {typeof getModelRegistry} */ (testDeps.getModelRegistry || getModelRegistry);
+    const parseProviderModelFn =
+        /** @type {typeof parseProviderModel} */ (testDeps.parseProviderModel || parseProviderModel);
+    const setActiveModelFn = /** @type {typeof setActiveModel} */ (testDeps.setActiveModel || setActiveModel);
 
-    if (argv.length === 0) {
+    let targetModel = argv[0]?.trim();
+
+    if (!targetModel) {
         if (uiAPI && editor) {
-            const modelRegistry = getModelRegistry();
+            const modelRegistry = getModelRegistryFn();
             const models = modelRegistry.getAvailable();
 
             if (models.length === 0) {
@@ -44,7 +51,7 @@ export async function runModelsCommand(argv, options = {}) {
                 return;
             }
 
-            const targetModel = chosen;
+            targetModel = chosen;
             const modelObj = models.find((model) =>
                 `${model.provider}/${model.id}` === targetModel || model.id === targetModel
             );
@@ -56,23 +63,18 @@ export async function runModelsCommand(argv, options = {}) {
                 return;
             }
 
-            setActiveModel(modelObj.id, modelObj.provider);
+            setActiveModelFn(modelObj.id, modelObj.provider);
             uiAPI.appendSystemMessage(`Switched model to ${modelObj.provider}/${modelObj.id}`);
             editor.setText("");
             editor.disableSubmit = false;
             return;
-        } else if (uiAPI) {
-            uiAPI.appendSystemMessage("Usage: /model <provider>/<model_id>");
+        } else {
+            console.log("Usage: hns model <provider>/<model_id>");
             return;
         }
-
-        console.log("Usage: hns model <provider>/<model_id>");
-        return;
     }
 
-    const targetModel = argv[0].trim();
-    const parsedArgs = parseProviderModel(targetModel);
-
+    const parsedArgs = parseProviderModelFn(targetModel);
     if (!parsedArgs.ok) {
         if (uiAPI) {
             uiAPI.appendSystemMessage("Invalid model format. Use /model to switch.");
@@ -82,7 +84,7 @@ export async function runModelsCommand(argv, options = {}) {
         return;
     }
 
-    const modelRegistry = getModelRegistry();
+    const modelRegistry = getModelRegistryFn();
     const modelObj = modelRegistry.find(parsedArgs.provider, parsedArgs.id);
 
     // Provide some feedback to the user on success/failure within the correct interface
@@ -95,7 +97,7 @@ export async function runModelsCommand(argv, options = {}) {
         return;
     }
 
-    setActiveModel(modelObj.id, modelObj.provider);
+    setActiveModelFn(modelObj.id, modelObj.provider);
 
     if (uiAPI) {
         uiAPI.appendSystemMessage(`Switched model to ${modelObj.provider}/${modelObj.id}`);

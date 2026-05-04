@@ -12,19 +12,26 @@ import { printCommandHelp } from "../help/index.js";
  * Handle `plans` command.
  *
  * @param {string[]} argv
+ * @param {import('../registry.js').CommandContext & { __testDeps?: { parseArgs?: typeof parseArgs, listPlans?: typeof listPlans, printCommandHelp?: typeof printCommandHelp }}} [options]
  */
-export async function runPlansCommand(argv) {
-    const parsed = parseArgs(argv, {
+export async function runPlansCommand(argv, options = {}) {
+    const deps = /** @type {{ parseArgs?: typeof parseArgs, listPlans?: typeof listPlans, printCommandHelp?: typeof printCommandHelp }} */
+        ((/** @type {any} */ (options)).__testDeps || {});
+    const parseArgsFn = deps.parseArgs || parseArgs;
+    const listPlansFn = deps.listPlans || listPlans;
+    const printCommandHelpFn = deps.printCommandHelp || printCommandHelp;
+
+    const parsed = parseArgsFn(argv, {
         boolean: ["help"],
         alias: { h: "help" },
     });
 
     if (parsed.help) {
-        printCommandHelp("plans");
+        printCommandHelpFn("plans");
         return;
     }
 
-    const plans = await listPlans(CWD);
+    const plans = await listPlansFn(CWD);
     if (plans.length === 0) {
         console.log("[Harns] No saved plans found.");
         return;

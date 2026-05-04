@@ -134,3 +134,25 @@ Deno.test("executeSwitchAgent succeeds when given a direct uiAPI without global 
     assertEquals(triggeredAgent, "router");
     assertEquals(triggeredReason, "Back to start");
 });
+
+Deno.test("executeSwitchAgent returns unknown-agent error with available list", async () => {
+    /** @type {import('../../shared/ui/types.js').UiAPI} */
+    const mockUiAPI = {
+        appendSystemMessage: () => {},
+        requestRender: () => {},
+        appendAgentMessageStart: () => ({ appendText: () => {} }),
+        promptSelect: () => Promise.resolve(null),
+        promptText: () => Promise.resolve(null),
+    };
+
+    const result = await executeSwitchAgent(
+        { agentName: "not-real-agent", reason: "test" },
+        mockUiAPI,
+        undefined,
+    );
+
+    assertMatch(
+        /** @type {{ type: "text", text: string }} */ (result.content[0]).text,
+        /Unknown agent "not-real-agent"/i,
+    );
+});

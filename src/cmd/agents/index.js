@@ -13,15 +13,31 @@ import { createDirectAgentHandler } from "../../shared/direct-agent.js";
 export { getAgentCompletions } from "./getArgumentCompletions.js";
 
 /**
+ * @typedef AgentsTestDeps
+ * @property {typeof listAvailableAgents} [listAvailableAgents]
+ * @property {typeof createDirectAgentHandler} [createDirectAgentHandler]
+ * @property {typeof setActiveAgent} [setActiveAgent]
+ * @property {typeof startInteractiveSession} [startInteractiveSession]
+ * @property {typeof printCommandHelp} [printCommandHelp]
+ * @property {(code: number) => never} [exit]
+ */
+
+/**
  * Run the agents command in CLI mode.
  *
  * @param {string} agentName
  * @param {string[]} rest
- *
+ * @param {AgentsTestDeps} [deps]
  * @returns {Promise<void>}
  */
-async function runAgentsCommandCli(agentName, rest) {
-    const agents = await listAvailableAgents();
+async function runAgentsCommandCli(agentName, rest, deps = {}) {
+    const listAvailableAgentsFn = deps.listAvailableAgents || listAvailableAgents;
+    const createDirectAgentHandlerFn = deps.createDirectAgentHandler || createDirectAgentHandler;
+    const setActiveAgentFn = deps.setActiveAgent || setActiveAgent;
+    const startInteractiveSessionFn = deps.startInteractiveSession || startInteractiveSession;
+    const exitFn = deps.exit || Deno.exit;
+
+    const agents = await listAvailableAgentsFn();
 
     // No agent name: list all and exit
     if (!agentName) {
@@ -41,14 +57,15 @@ async function runAgentsCommandCli(agentName, rest) {
         for (const agent of agents) {
             console.log(`  ${agent.name.padEnd(14)} ${agent.description}`);
         }
-        Deno.exit(1);
+        exitFn(1);
+        return;
     }
 
-    const handler = createDirectAgentHandler(agentName);
+    const handler = createDirectAgentHandlerFn(agentName);
     const userRequest = rest.join(" ").trim();
 
-    setActiveAgent(match.displayName, handler);
-    await startInteractiveSession(userRequest || null, handler);
+    setActiveAgentFn(match.displayName, handler);
+    await startInteractiveSessionFn(userRequest || null, handler);
 }
 
 /**
@@ -61,11 +78,15 @@ async function runAgentsCommandCli(agentName, rest) {
  *   uiAPI: import('../../shared/ui/types.js').UiAPI,
  *   editor: import('../../shared/ui/types.js').EditorAPI,
  * }} options
- *
+ * @param {AgentsTestDeps} [deps]
  * @return {Promise<void>}
  */
-async function runAgentsCommandTUI(agentName, _rest, options) {
-    const agents = await listAvailableAgents();
+async function runAgentsCommandTUI(agentName, _rest, options, deps = {}) {
+    const listAvailableAgentsFn = deps.listAvailableAgents || listAvailableAgents;
+    const createDirectAgentHandlerFn = deps.createDirectAgentHandler || createDirectAgentHandler;
+    const setActiveAgentFn = deps.setActiveAgent || setActiveAgent;
+
+    const agents = await listAvailableAgentsFn();
     const { tui, uiAPI, editor } = options;
     editor.setText("");
 
@@ -96,12 +117,10 @@ async function runAgentsCommandTUI(agentName, _rest, options) {
         return;
     }
 
-    const handler = match.name == "router" ? routerCmdOnMessage : createDirectAgentHandler(match.name);
+    const handler = match.name == "router" ? routerCmdOnMessage : createDirectAgentHandlerFn(match.name);
 
-    setActiveAgent(match.displayName, handler, uiAPI, match.model);
+    setActiveAgentFn(match.displayName, handler, uiAPI, match.model);
     tui.setFocus(/** @type {import('@mariozechner/pi-tui').Component} */ (/** @type {unknown} */ (editor)));
-
-    return;
 }
 
 /**
@@ -118,14 +137,15 @@ async function runAgentsCommandTUI(agentName, _rest, options) {
  *
  * @param {string[]} argv
  * @param {import('../registry.js').CommandContext} [options]
- *
  * @return {Promise<void>}
  */
 export async function runAgentsCommand(argv, options = {}) {
     const [agentName, ...rest] = argv;
+    const testDeps = /** @type {AgentsTestDeps} */ ((/** @type {any} */ (options)).__testDeps || {});
+    const printCommandHelpFn = testDeps.printCommandHelp || printCommandHelp;
 
     if (agentName === "help") {
-        printCommandHelp(COMMAND_NAMES.AGENT);
+        printCommandHelpFn(COMMAND_NAMES.AGENT);
         return;
     }
 
@@ -135,9 +155,9 @@ export async function runAgentsCommand(argv, options = {}) {
             uiAPI: options.uiAPI,
             editor: options.editor,
             tui: options.tui,
-        });
+        }, testDeps);
     }
 
     // Standard CLI flow
-    return await runAgentsCommandCli(agentName, rest);
+    return await runAgentsCommandCli(agentName, rest, testDeps);
 }

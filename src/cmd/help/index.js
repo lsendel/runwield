@@ -4,7 +4,7 @@
  */
 
 import { parseArgs } from "@std/cli/parse-args";
-import { CLI_BIN, DEV_CLI_RUN } from "../../constants.js";
+import { CLI_BIN } from "../../constants.js";
 import { getCliCommandDefinitions, getCommandDefinition } from "../registry.js";
 
 /**
@@ -28,7 +28,6 @@ export function printGlobalHelp() {
     console.log("\nHelp:");
     console.log(`  ${CLI_BIN} --help`);
     console.log(`  ${CLI_BIN} help <command>`);
-    console.log(`\nDeveloper fallback: ${DEV_CLI_RUN} --help`);
 }
 
 /**

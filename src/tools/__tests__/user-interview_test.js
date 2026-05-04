@@ -232,3 +232,50 @@ Deno.test("userInterviewTool returns validation_error for invalid multiple-choic
     assertEquals(result.details.errors?.[0]?.code, "INVALID_ANSWER");
     assertMatch(result.details.errors?.[0]?.message ?? "", /does not exist/i);
 });
+
+Deno.test("userInterviewTool returns invalid_request when payload is missing", async () => {
+    const tool = createUserInterviewTool(undefined);
+    const result = await executeTool(tool, {});
+
+    assertEquals(result.details.status, "invalid_request");
+    assertEquals(result.details.errors?.[0]?.code, "INVALID_BATCH");
+    assertMatch(result.details.errors?.[0]?.message ?? "", /Missing interview payload/i);
+});
+
+Deno.test("userInterviewTool returns invalid_request for invalid id and choices", async () => {
+    const tool = createUserInterviewTool(undefined);
+    const result = await executeTool(tool, {
+        question: {
+            id: "bad id",
+            type: "multiple_choice",
+            prompt: "Pick",
+            choices: [
+                { value: "" },
+                { value: "a" },
+            ],
+        },
+    });
+
+    assertEquals(result.details.status, "invalid_request");
+    const codes = new Set((result.details.errors ?? []).map((/** @type {{ code: string }} */ e) => e.code));
+    assert(codes.has("INVALID_ID"));
+    assert(codes.has("EMPTY_CHOICE_VALUE"));
+});
+
+Deno.test("userInterviewTool returns validation_error for invalid yes/no response", async () => {
+    const tool = createUserInterviewTool(makeUi({
+        promptSelect: () => Promise.resolve("maybe"),
+    }));
+
+    const result = await executeTool(tool, {
+        question: {
+            id: "confirm",
+            type: "yes_no",
+            prompt: "Proceed?",
+        },
+    });
+
+    assertEquals(result.details.status, "validation_error");
+    assertEquals(result.details.errors?.[0]?.code, "INVALID_ANSWER");
+    assertMatch(result.details.errors?.[0]?.message ?? "", /Unexpected yes\/no response/i);
+});

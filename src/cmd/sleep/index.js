@@ -14,24 +14,31 @@ import { ensureMnemosyneBinary } from "../../shared/runtime-preflight.js";
  *
  * @param {string[]} argv
  */
-export async function runSleepCommand(argv) {
-    const parsed = parseArgs(argv, {
+export async function runSleepCommand(argv, options = {}) {
+    const deps = /** @type {Record<string, unknown>} */ ((/** @type {any} */ (options)).__testDeps || {});
+    const parseArgsFn = /** @type {typeof parseArgs} */ (deps.parseArgs || parseArgs);
+    const printCommandHelpFn = /** @type {typeof printCommandHelp} */ (deps.printCommandHelp || printCommandHelp);
+    const ensureMnemosyneBinaryFn =
+        /** @type {typeof ensureMnemosyneBinary} */ (deps.ensureMnemosyneBinary || ensureMnemosyneBinary);
+    const runAgentSessionFn = /** @type {typeof runAgentSession} */ (deps.runAgentSession || runAgentSession);
+
+    const parsed = parseArgsFn(argv, {
         boolean: ["help"],
         alias: { h: "help" },
         stopEarly: true,
     });
 
     if (parsed.help) {
-        printCommandHelp(COMMAND_NAMES.SLEEP);
+        printCommandHelpFn(COMMAND_NAMES.SLEEP);
         return;
     }
 
-    await ensureMnemosyneBinary();
+    await ensureMnemosyneBinaryFn();
 
     console.log("[Harns] Running sleep mode (memory optimization)...\n");
 
     // Route through the /sleep prompt template using the operator agent
-    await runAgentSession({
+    await runAgentSessionFn({
         agentName: "operator",
         userRequest: "/sleep",
     });
