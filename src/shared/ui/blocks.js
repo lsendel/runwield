@@ -603,7 +603,7 @@ export class SpinnerBlock {
     }
 
     advance() {
-        if (this.isBusy) {
+        if (this.isBusy || this.tasks.length > 0) {
             this.frame++;
             this.invalidate();
         }
