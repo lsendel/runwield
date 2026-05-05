@@ -1,7 +1,8 @@
-- [ ] do another code review and optimization pass with Opus 4.6
+- [ ] do another code review and optimization pass with Opus 4.6 I did of the cmd files but more is needed. I also told
+      it to optimize the uiAPI and I seem to have stabilized it.
 - [ ] more tests
 - [ ] Write tests for the TUI how? avoid TUI regressions in rendering and keymap handling
-- [ ] Allow steering
+- [x] Allow steering
 - [ ] Start implementing the code indexing
 - [ ] formalize plan statuses and make sure they are used consistently. Plans should start as `draft`, then move to
       `in_review` when submitted for review, and finally `approved`. When a plan is completed, it should be marked as

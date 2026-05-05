@@ -540,7 +540,7 @@ export async function startInteractiveSession(initialUserRequest, onMessage, opt
 
     uiAPI.disableInput = () => {
         if (editor) {
-            editor.disableSubmit = true;
+            // editor.disableSubmit = true;
             tui.requestRender();
         }
     };
@@ -597,7 +597,31 @@ export async function startInteractiveSession(initialUserRequest, onMessage, opt
     }
 
     // Handle Editor events
-    editor.onSubmit = async (text) => {
+    /** @type {Array<{text: string, images: import('./session/types.js').ImageAttachment[]}>} */
+    const submissionQueue = [];
+    let isProcessingSubmission = false;
+
+    async function processSubmissions() {
+        if (isProcessingSubmission) return;
+        isProcessingSubmission = true;
+
+        while (submissionQueue.length > 0) {
+            const item = submissionQueue.shift();
+            if (!item) continue;
+            const { text, images: savedImages } = item;
+            await executeUserRequest(text, savedImages);
+        }
+
+        isProcessingSubmission = false;
+        forceResetUI();
+    }
+
+    // Handle Editor events
+    /**
+     * @param {string} text
+     * @param {import('./session/types.js').ImageAttachment[]} savedImages
+     */
+    async function executeUserRequest(text, savedImages) {
         const userRequest = text.trim();
         if (!userRequest) return;
 
@@ -609,12 +633,6 @@ export async function startInteractiveSession(initialUserRequest, onMessage, opt
             const command = isExcluded ? userRequest.slice(2).trim() : userRequest.slice(1).trim();
 
             if (command) {
-                editor.setText("");
-                editor.disableSubmit = true;
-
-                pastedImages.length = 0;
-                previewImages.clear();
-
                 // @ts-ignore: TS doesn't know about UI API typing inside session management
                 if (uiAPI.appendUserMessage && !isExcluded) {
                     try {
@@ -657,12 +675,10 @@ export async function startInteractiveSession(initialUserRequest, onMessage, opt
                             spawnSync(command, { stdio: "inherit", shell: true });
                             // Re-init terminal to clear visual artifacts
                             initTUI();
-                            editor.setText("");
                             tui.requestRender();
                         } catch (_e) {
                             // Ignore error
                         } finally {
-                            editor.disableSubmit = false;
                             if (uiAPI.setBusy) uiAPI.setBusy(false);
                             if (uiAPI.enableInput) uiAPI.enableInput();
                             tui.setFocus(editor);
@@ -775,7 +791,7 @@ export async function startInteractiveSession(initialUserRequest, onMessage, opt
                     }
                 } finally {
                     activeBashProc = null;
-                    forceResetUI();
+                    // forceResetUI(); handled by queue
                 }
                 return;
             }
@@ -794,7 +810,6 @@ export async function startInteractiveSession(initialUserRequest, onMessage, opt
             const { commandRegistry } = await import("../cmd/registry.js");
 
             if (CHAT_BUILTIN_SLASH_NAMES.has(command) && commandRegistry[command]) {
-                editor.disableSubmit = true;
                 // Register cancel hook: abort any agent session started by this command
                 activeOperationCancel = () => {
                     abortActiveSession();
@@ -816,34 +831,29 @@ export async function startInteractiveSession(initialUserRequest, onMessage, opt
                     }
                 } finally {
                     activeOperationCancel = null;
-                    forceResetUI();
+                    // forceResetUI(); handled by queue
                 }
             } else {
                 const template = promptTemplateByName.get(command);
 
                 if (template) {
                     // Dispatch prompt templates to operator (not selected chat agent)
-                    editor.disableSubmit = true;
-                    editor.setText("");
 
                     let resolvedTemplateModel = null;
                     if (template.model) {
                         const resolution = resolveTemplateModel(template.model);
                         if (!resolution.ok) {
                             uiAPI.appendSystemMessage("Invalid template model. Use /model to switch.");
-                            editor.disableSubmit = false;
                             return;
                         }
 
                         resolvedTemplateModel = resolution;
                     }
 
-                    const images = [...pastedImages];
-                    pastedImages.length = 0;
-                    previewImages.clear();
+                    const images = savedImages;
 
                     uiAPI.appendUserMessage?.(userRequest);
-                    images.forEach((img) => {
+                    images.forEach((/** @type {import('./session/types.js').ImageAttachment} */ img) => {
                         if (uiAPI.appendImage) uiAPI.appendImage(img.base64, img.mimeType);
                     });
 
@@ -873,15 +883,11 @@ export async function startInteractiveSession(initialUserRequest, onMessage, opt
                                 `Error: ${err instanceof Error ? err.message : String(err)}`,
                             );
                         }
-                    } finally {
-                        editor.disableSubmit = false;
                     }
                     return;
                 }
 
                 uiAPI.appendSystemMessage(`Unknown command: /${command}`);
-                editor.setText("");
-                editor.disableSubmit = false;
             }
             return;
         }
@@ -889,15 +895,10 @@ export async function startInteractiveSession(initialUserRequest, onMessage, opt
         // Generation gating
         const thisGen = ++operationGeneration;
 
-        editor.disableSubmit = true;
-        editor.setText("");
-
-        const images = [...pastedImages];
-        pastedImages.length = 0;
-        previewImages.clear();
+        const images = savedImages;
 
         uiAPI.appendUserMessage?.(userRequest);
-        images.forEach((img) => {
+        images.forEach((/** @type {import('./session/types.js').ImageAttachment} */ img) => {
             if (uiAPI.appendImage) uiAPI.appendImage(img.base64, img.mimeType);
         });
 
@@ -917,8 +918,28 @@ export async function startInteractiveSession(initialUserRequest, onMessage, opt
                 );
             }
         } finally {
-            forceResetUI();
+            // forceResetUI(); handled by queue
         }
+    }
+
+    editor.onSubmit = (text) => {
+        const userRequest = text.trim();
+        if (!userRequest) return;
+
+        editor.addToHistory?.(userRequest);
+
+        submissionQueue.push({ text: userRequest, images: [...pastedImages] });
+        pastedImages.length = 0;
+        previewImages.clear();
+        editor.setText("");
+
+        if (isProcessingSubmission) {
+            uiAPI.appendSystemMessage(`[Queued message: ${userRequest}]`);
+            tui.requestRender();
+            return;
+        }
+
+        processSubmissions();
     };
 
     // Re-render UI after handling pasted images
@@ -934,6 +955,8 @@ export async function startInteractiveSession(initialUserRequest, onMessage, opt
         if (matchesKey(data, Key.escape)) {
             // 1. Bump generation to suppress late results from whatever is running
             ++operationGeneration;
+            // 1.5 Clear the submission queue
+            submissionQueue.length = 0;
             // 2. Dismiss any active prompt overlay/block
             dismissActivePrompt();
             // 3. Cancel active operation (bash, registered callback, etc.)

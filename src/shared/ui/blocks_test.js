@@ -1,4 +1,4 @@
-import { assertEquals } from "@std/assert";
+import { assertEquals, assertNotEquals } from "@std/assert";
 import chalk from "chalk";
 
 // Force chalk to produce ANSI codes in non-TTY test environment
@@ -15,6 +15,7 @@ import {
     UserPromptBlock,
 } from "./blocks.js";
 import { Text } from "@mariozechner/pi-tui";
+import stripAnsi from "strip-ansi";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -164,6 +165,27 @@ Deno.test("ToolExecutionBlock strips ANSI from tool output", () => {
     assertBlockBackground(lines, w, "ToolExecutionBlock(colored output)");
 });
 
+Deno.test("ToolExecutionBlock expansion and truncation logic", () => {
+    const w = 100;
+    const block = new ToolExecutionBlock("bash", "echo lines");
+
+    // Add more lines than previewLineLimit (6)
+    for (let i = 0; i < 10; i++) {
+        block.appendOutput(`line ${i}\n`);
+    }
+
+    // While collapsed (default), it should only show a subset of lines
+    assertEquals(block.expanded, false);
+    const collapsedLines = block.render(w);
+
+    // Expand it
+    block.setExpanded(true);
+    const expandedLines = block.render(w);
+
+    // The expanded render should be taller than the collapsed render
+    assertEquals(expandedLines.length > collapsedLines.length, true);
+});
+
 // ─── PromptSelectBlock ───────────────────────────────────────────────────────
 
 Deno.test("PromptSelectBlock renders with uniform background", () => {
@@ -203,6 +225,38 @@ Deno.test("PromptSelectBlock handles long items that trigger truncation", () => 
     assertBlockBackground(lines, w, "PromptSelectBlock(truncated)");
 });
 
+Deno.test("PromptSelectBlock handles filtering and settling", () => {
+    const items = [
+        { value: "apple", label: "Apple", description: "Red fruit" },
+        { value: "banana", label: "Banana", description: "Yellow fruit" },
+    ];
+    const block = new PromptSelectBlock("Choose fruit:", items);
+
+    // Test Filtering: simulate typing "ban"
+    block.handleInput("b");
+    block.handleInput("a");
+    block.handleInput("n");
+
+    // The list should now only contain "banana"
+    // @ts-ignore: Accessing private field for test verification
+    assertEquals(block.list.filteredItems.length, 1);
+    // @ts-ignore: Accessing private field for test verification
+    assertEquals(block.list.filteredItems[0].value, "banana");
+
+    // Test Navigation: clear filter
+    block.input.setValue("");
+    block.list.setFilter("");
+
+    block.handleInput("\x1b[B");
+    // @ts-ignore: Accessing private field for test verification
+    assertEquals(block.list.selectedIndex > 0, true);
+
+    // Test Settling
+    block.settle("banana");
+    assertEquals(block.settled, true);
+    assertEquals(block.chosenValue, "banana");
+});
+
 // ─── PromptTextBlock ─────────────────────────────────────────────────────────
 
 Deno.test("PromptTextBlock renders with uniform background", () => {
@@ -222,6 +276,27 @@ Deno.test("PromptTextBlock renders with uniform background", () => {
     assertEquals(uniqueBgs.length, 1, `PromptTextBlock should have uniform bg, got: ${uniqueBgs.join(", ")}`);
 });
 
+Deno.test("PromptTextBlock handles input and settling", () => {
+    const block = new PromptTextBlock("Enter value:");
+    block.focus();
+
+    // Simulate typing
+    block.handleInput("h");
+    block.handleInput("i");
+
+    assertEquals(block.input.getValue(), "hi");
+
+    block.settle(block.input.getValue());
+
+    assertEquals(block.settled, true);
+    assertEquals(block.chosenValue, "hi");
+
+    // Verify visual output changes to a finalized line (contains "hi")
+    const lines = block.render(80);
+    const plainTextLines = lines.map((line) => stripAnsi(line));
+    assertEquals(plainTextLines.some((line) => line.includes("hi")), true);
+});
+
 // ─── SpinnerBlock ────────────────────────────────────────────────────────────
 
 Deno.test("SpinnerBlock renders full-width lines when busy", () => {
@@ -233,4 +308,25 @@ Deno.test("SpinnerBlock renders full-width lines when busy", () => {
         const vl = visibleLength(lines[i]);
         assertEquals(vl, w, `SpinnerBlock line ${i}: visible length should be ${w}, got ${vl}`);
     }
+});
+
+Deno.test("Spinner cycles animation frames", () => {
+    const spinner = new SpinnerBlock();
+    spinner.setBusy(true);
+
+    const frame1 = spinner.render(80)[0];
+    spinner.advance();
+    const frame2 = spinner.render(80)[0];
+
+    assertNotEquals(frame1, frame2);
+});
+
+Deno.test("SpinnerBlock renders tasks when provided", () => {
+    const spinner = new SpinnerBlock();
+    spinner.setBusy(true, [{ task: 1, assignee: "agent", description: "doing work" }]);
+
+    const lines = spinner.render(80);
+    const plainText = stripAnsi(lines[0]);
+    assertEquals(plainText.includes("agent"), true);
+    assertEquals(plainText.includes("Task 1"), true);
 });
