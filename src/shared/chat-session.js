@@ -642,9 +642,7 @@ export async function startInteractiveSession(initialUserRequest, onMessage, opt
                         });
                     }
 
-                    const toolBlock = isExcluded
-                        ? undefined
-                        : uiAPI.startToolExecution?.(activeToolId, `bash`, command);
+                    const toolBlock = isExcluded ? undefined : uiAPI.startToolExecution?.(activeToolId, "$", command);
 
                     const { exec } = await import("child_process");
 
@@ -696,15 +694,17 @@ export async function startInteractiveSession(initialUserRequest, onMessage, opt
 
                         proc.stdout?.on("data", (data) => {
                             if (!isExcluded && !wasCanceled) {
-                                toolBlock?.appendOutput(data.toString());
-                                outputBuffer += data.toString();
+                                const chunk = data.toString();
+                                toolBlock?.appendOutput(chunk);
+                                outputBuffer += chunk;
                             }
                         });
 
                         proc.stderr?.on("data", (data) => {
                             if (!isExcluded && !wasCanceled) {
-                                toolBlock?.appendOutput(data.toString());
-                                outputBuffer += data.toString();
+                                const chunk = data.toString();
+                                toolBlock?.appendOutput(chunk);
+                                outputBuffer += chunk;
                             }
                         });
 
@@ -714,8 +714,9 @@ export async function startInteractiveSession(initialUserRequest, onMessage, opt
 
                         proc.on("error", (err) => {
                             if (!isExcluded && !wasCanceled) {
-                                toolBlock?.appendOutput(`Error starting process: ${err.message}`);
-                                outputBuffer += `Error starting process: ${err.message}\n`;
+                                const chunk = `Error starting process: ${err.message}\n`;
+                                toolBlock?.appendOutput(chunk);
+                                outputBuffer += chunk;
                             } else {
                                 console.error(`Error starting process: ${err.message}`);
                             }

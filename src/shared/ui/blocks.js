@@ -148,18 +148,16 @@ export class ToolExecutionBlock {
 
         // Header
         const commandText = argsStr.trim();
-        const headerText = toolName === "bash"
-            ? `$${commandText ? ` ${commandText}` : ""}`
-            : (commandText ? `${toolName} ${commandText}` : toolName);
+        const headerText = commandText ? `${toolName} ${commandText}` : toolName;
+        const normalBlockBg = "surface0";
         this.header = new ColoredBlock(
-            "surface1",
+            normalBlockBg,
             new PaddedBlock(2, 1, new Text(theme.fg("text", theme.bold(headerText)), 0, 0)),
         );
         this.container.addChild(this.header);
 
         // Body
         this.bodyContainer = new Container();
-        // Body wrapper gets surface0 normally, or a different color if error occurs.
         this.bodyBlock = new ColoredBlock("surface0", new PaddedBlock(2, 0, this.bodyContainer));
         this.container.addChild(this.bodyBlock);
 
@@ -202,7 +200,7 @@ export class ToolExecutionBlock {
             },
         };
         this.footerContainer.addChild(this.footerLine);
-        this.footerBlock = new ColoredBlock("surface1", new PaddedBlock(2, 1, this.footerContainer));
+        this.footerBlock = new ColoredBlock(normalBlockBg, new PaddedBlock(2, 1, this.footerContainer));
         this.container.addChild(this.footerBlock);
 
         // Store body text

@@ -9,7 +9,10 @@ import { join } from "@std/path";
 import { AGENT_DEFS_DIR, CORE_SYSTEM_PROMPT, CWD, PROMPT_TEMPLATES_DIR } from "../../constants.js";
 import mnemosyneExtension from "../../extensions/mnemosyne/index.js";
 import { ensureMnemosyneBinary } from "../runtime-preflight.js";
+import { planWrittenTool } from "../../tools/plan-written.js";
 import { executeSwitchAgent, switchAgentTool, triggerAgent } from "../../tools/switch-agent.js";
+import { triageReportTool } from "../../tools/triage-report.js";
+import { createUserInterviewTool } from "../../tools/user-interview.js";
 import { getModelRegistry } from "../models/model-registry.js";
 import { parseProviderModel } from "../models/model-validation.js";
 import { getActiveModelState } from "./session-state.js";
@@ -85,20 +88,53 @@ async function fileExists(path) {
 }
 
 /**
- * Merge tool names by union + stable order, keeping lower-layer defaults and
- * appending any new higher-layer tools.
+ * Tools that are always available in Harns regardless of frontmatter overrides.
  *
- * @param {string[]} baseTools
- * @param {unknown[] | undefined} nextTools
+ * @type {string[]}
+ */
+const INTERNAL_TOOL_NAMES = [
+    "switch_agent",
+    "plan_written",
+    "triage_report",
+    "user_interview",
+    "memory_recall",
+    "memory_recall_global",
+    "memory_store",
+    "memory_store_global",
+    "memory_delete",
+];
+
+/**
+ * Normalize unknown tool list input into a deduped array of non-empty strings.
+ *
+ * @param {unknown} tools
  * @returns {string[]}
  */
-function mergeTools(baseTools, nextTools) {
-    const merged = [...baseTools];
-    if (!Array.isArray(nextTools)) return merged;
+function normalizeToolNames(tools) {
+    if (!Array.isArray(tools)) return [];
 
-    for (const tool of nextTools) {
+    /** @type {string[]} */
+    const normalized = [];
+
+    for (const tool of tools) {
         const toolName = typeof tool === "string" ? tool.trim() : "";
         if (!toolName) continue;
+        if (!normalized.includes(toolName)) normalized.push(toolName);
+    }
+
+    return normalized;
+}
+
+/**
+ * Append internal Harns tools while preserving existing order and avoiding duplicates.
+ *
+ * @param {string[] | undefined} baseTools
+ * @returns {string[]}
+ */
+function addInternalTools(baseTools) {
+    const merged = [...(baseTools || [])];
+
+    for (const toolName of INTERNAL_TOOL_NAMES) {
         if (!merged.includes(toolName)) merged.push(toolName);
     }
 
@@ -259,7 +295,7 @@ export async function listAgentDefNames() {
  *
  * Higher layers override scalar attrs. Prompt body appends by default; if a
  * layer sets `promptOverride: true`, lower-layer prompt content is discarded.
- * Tools are merged by union (deduped), preserving existing defaults.
+ * Tool lists are replaced when a higher layer defines `tools`.
  *
  * @param {string} agentName
  * @returns {Promise<AgentDef>}
@@ -288,7 +324,9 @@ export async function loadAgentDef(agentName) {
         found = true;
 
         mergedAttrs = { ...mergedAttrs, ...attrs };
-        mergedTools = mergeTools(mergedTools, attrs.tools);
+        if (Object.prototype.hasOwnProperty.call(attrs, "tools")) {
+            mergedTools = normalizeToolNames(attrs.tools);
+        }
 
         if (attrs.promptOverride === true) {
             promptSegments = [];
@@ -322,7 +360,7 @@ export async function loadAgentDef(agentName) {
         name,
         model,
         description,
-        tools: mergedTools,
+        tools: addInternalTools(mergedTools),
         systemPrompt,
     };
 }
@@ -426,10 +464,13 @@ export async function runAgentSession(
 
     const customToolNames = (customTools || []).map((t) => t.name);
     const selectedToolNames = toolNames || agentDef.tools;
-    const tools = [...new Set([...(selectedToolNames || []), ...customToolNames])];
+    const tools = addInternalTools([...new Set([...(selectedToolNames || []), ...customToolNames])]);
     const finalCustomTools = [...(customTools || [])];
 
-    // special handling for switch_agent because it requires uiAPI
+    // Auto-wire internal custom tools if requested by name and not already provided.
+    // This keeps agent frontmatter declarative: adding/removing tool names controls availability,
+    // while Harns runtime injects the concrete tool implementations.
+
     if (tools.includes("switch_agent") && !finalCustomTools.find((t) => t.name === "switch_agent")) {
         finalCustomTools.push({
             ...switchAgentTool,
@@ -442,6 +483,18 @@ export async function runAgentSession(
                 );
             },
         });
+    }
+
+    if (tools.includes("plan_written") && !finalCustomTools.find((t) => t.name === "plan_written")) {
+        finalCustomTools.push(planWrittenTool);
+    }
+
+    if (tools.includes("triage_report") && !finalCustomTools.find((t) => t.name === "triage_report")) {
+        finalCustomTools.push(triageReportTool);
+    }
+
+    if (tools.includes("user_interview") && !finalCustomTools.find((t) => t.name === "user_interview")) {
+        finalCustomTools.push(createUserInterviewTool(uiAPI));
     }
 
     // Update the agent info in the UI footer.
@@ -601,7 +654,8 @@ export async function runAgentSession(
                 }
 
                 if (uiAPI && uiAPI.startToolExecution) {
-                    uiAPI.startToolExecution(event.toolCallId, event.toolName, headerArgs);
+                    const headerName = event.toolName === "bash" ? "$" : event.toolName;
+                    uiAPI.startToolExecution(event.toolCallId, headerName, headerArgs);
                 } else {
                     console.log(`\n  [Tool] ${event.toolName} ${headerArgs}`);
                 }

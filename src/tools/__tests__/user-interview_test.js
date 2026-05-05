@@ -74,7 +74,9 @@ Deno.test("userInterviewTool completes a single yes/no question", async () => {
         valueLabel: "yes",
         otherText: undefined,
     });
-    assertEquals(firstText(result), "Interview completed: captured 1/1 answer(s).");
+    assertMatch(firstText(result), /Interview completed: captured 1\/1 answer\(s\)\./);
+    assertMatch(firstText(result), /interview_result_json:/);
+    assertMatch(firstText(result), /"answers"\s*:\s*\[/);
 });
 
 Deno.test("userInterviewTool completes a mixed 3-question batch", async () => {

@@ -20,7 +20,9 @@ const yesNoQuestionSchema = Type.Object({
     type: StringEnum(["yes_no"]),
     prompt: Type.String({ minLength: 1, maxLength: 400, description: "Question text shown to the user." }),
     default: Type.Optional(Type.Boolean({ description: "Optional recommended default answer." })),
-    allowOther: Type.Optional(Type.Boolean({ description: "Allow user to provide an 'Other' open-ended answer." })),
+    allowOther: Type.Optional(Type.Boolean({
+        description: "Deprecated. 'Other' is always available for yes_no questions.",
+    })),
 }, { additionalProperties: false });
 
 const textQuestionSchema = Type.Object({
@@ -50,7 +52,9 @@ const multipleChoiceQuestionSchema = Type.Object({
     default: Type.Optional(
         Type.String({ minLength: 1, maxLength: 120, description: "Optional default choice value." }),
     ),
-    allowOther: Type.Optional(Type.Boolean({ description: "Allow user to provide an 'Other' open-ended answer." })),
+    allowOther: Type.Optional(Type.Boolean({
+        description: "Deprecated. 'Other' is always available for multiple_choice questions.",
+    })),
 }, { additionalProperties: false });
 
 const interviewQuestionSchema = Type.Union([
@@ -134,9 +138,9 @@ export function createUserInterviewTool(uiAPI) {
         name: "user_interview",
         label: "User Interview",
         description:
-            "Ask the user 1-3 structured clarification questions (yes_no, text, multiple_choice) and receive ordered answers. Support optional 'allowOther' for yes_no and multiple_choice to collect open-ended follow-up text.",
+            "Ask the user 1-3 structured clarification questions (yes_no, text, multiple_choice) and receive ordered answers. Yes/no and multiple-choice always include an 'Other' option with free-text follow-up.",
         promptSnippet:
-            "user_interview(question|questions): Ask one or a small 1-3 question batch before finalizing planning decisions. Use 'text' for fully open-ended questions, or 'allowOther: true' for yes_no/multiple_choice.",
+            "user_interview(question|questions): Ask one or a small 1-3 question batch before finalizing planning decisions. Yes/no and multiple_choice always include an Other option for open-ended input.",
         parameters: interviewParametersSchema,
         async execute(_toolCallId, params) {
             const normalized = normalizeBatch(
@@ -355,10 +359,10 @@ function validateBatch(questions) {
                 values.add(value);
             }
 
-            if (q.allowOther && values.has(OTHER_VALUE)) {
+            if (values.has(OTHER_VALUE)) {
                 errors.push({
                     code: "SENTINEL_COLLISION",
-                    message: `The value "${OTHER_VALUE}" is reserved when allowOther is enabled.`,
+                    message: `The value "${OTHER_VALUE}" is reserved and cannot be used as a choice value.`,
                     questionIndex: idx,
                     questionId: q.id,
                 });
@@ -390,9 +394,7 @@ async function askQuestion(question, uiAPI) {
             { value: "no", label: question.default === false ? "No (recommended)" : "No" },
         ];
 
-        if (question.allowOther) {
-            options.push({ value: OTHER_VALUE, label: "Other" });
-        }
+        options.push({ value: OTHER_VALUE, label: "Other" });
 
         const selected = uiAPI?.promptSelect
             ? await uiAPI.promptSelect(question.prompt, options)
@@ -443,9 +445,7 @@ async function askQuestion(question, uiAPI) {
             }))
         );
 
-        if (question.allowOther) {
-            options.push({ value: OTHER_VALUE, label: "Other" });
-        }
+        options.push({ value: OTHER_VALUE, label: "Other" });
 
         const selected = uiAPI?.promptSelect
             ? await uiAPI.promptSelect(question.prompt, options)
@@ -521,9 +521,21 @@ async function askQuestion(question, uiAPI) {
  * @returns {import('@mariozechner/pi-coding-agent').AgentToolResult<InterviewResultDetails>}
  */
 function buildResult(details) {
+    const payload = {
+        status: details.status,
+        canceled: details.canceled,
+        completed: details.completed,
+        totalQuestions: details.totalQuestions,
+        answeredCount: details.answeredCount,
+        remainingCount: details.remainingCount,
+        canceledAt: details.canceledAt,
+        answers: details.answers,
+        errors: details.errors || [],
+    };
+
     const content = /** @type {Array<{type: "text", text: string}>} */ ([{
         type: "text",
-        text: buildResultSummary(details),
+        text: `${buildResultSummary(details)}\n\ninterview_result_json:\n${JSON.stringify(payload, null, 2)}`,
     }]);
 
     return {

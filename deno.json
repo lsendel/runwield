@@ -17,7 +17,8 @@
         "@gandazgul/plannotator-pi-extension-compiled/server": "npm:@gandazgul/plannotator-pi-extension-compiled@^1.0.0/server",
         "@gandazgul/plannotator-pi-extension-compiled/assets": "npm:@gandazgul/plannotator-pi-extension-compiled@^1.0.0/assets",
         "turndown": "npm:turndown@^7.2.4",
-        "@joplin/turndown-plugin-gfm": "npm:@joplin/turndown-plugin-gfm@^1.0.64"
+        "@joplin/turndown-plugin-gfm": "npm:@joplin/turndown-plugin-gfm@^1.0.64",
+        "strip-ansi": "npm:strip-ansi@^7.1.2"
     },
     "tasks": {
         "ci": "deno task check && deno lint && deno fmt --check && deno task test",
