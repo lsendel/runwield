@@ -24,6 +24,7 @@ const colors = {
     mauve: "#cba6f7", // Accent
     red: "#f38ba8", // Error
     maroon: "#eba0ac",
+    toolBg: "#3e4b4c",
     toolErrorBg: "#4c3a4c",
     peach: "#fab387",
     yellow: "#f9e2af", // Warning

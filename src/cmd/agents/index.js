@@ -125,6 +125,10 @@ async function runAgentsCommandTUI(agentName, _rest, options, deps = {}) {
         ];
 
         const selected = await uiAPI.promptSelect("Switch agent:", agentOptions);
+        if (!selected) {
+            // User pressed Esc — silently cancel
+            return;
+        }
         chosenAgent = selected;
     }
 

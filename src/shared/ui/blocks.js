@@ -1,5 +1,19 @@
 import { Container, Input, Key, Markdown, matchesKey, SelectList, Spacer, Text } from "@mariozechner/pi-tui";
 import { markdownTheme, selectListTheme, theme } from "../ui/theme.js";
+import stripAnsi from "strip-ansi";
+
+// ─── Utilities ───────────────────────────────────────────────────────────────
+
+/**
+ * Get the visible length of a string by stripping all ANSI/terminal escape sequences.
+ * Handles CSI SGR codes (\x1b[...m), APC sequences (\x1b_...\x07), and OSC sequences (\x1b]...\x07).
+ * @param {string} str
+ * @returns {number}
+ */
+function visibleLength(str) {
+    // deno-lint-ignore no-control-regex
+    return str.replace(/\x1b\[[0-9;]*m|\x1b[_\]].*?\x07/g, "").length;
+}
 
 /**
  * Format system line text. If line starts with a bracketed prefix (e.g. `[Harns]`),
@@ -26,54 +40,69 @@ function formatSystemLine(text, isError) {
     return `${renderedPrefix} ${theme.fg(baseColor, rest)}`;
 }
 
+// ─── Layout Primitives ───────────────────────────────────────────────────────
+
 /**
- * @param {string[]} lines
- * @param {string} bgColor
+ * Apply a background color to a line, handling embedded \x1b[0m (full reset)
+ * codes that would otherwise kill the background mid-line.
+ *
+ * Instead of chalk.bgHex()(line) which can't handle raw resets, this manually
+ * wraps the line with the bg open/close codes and re-applies the bg after any
+ * embedded full reset.
+ *
+ * @param {string} bgCode - raw ANSI bg open code (e.g. "\x1b[48;2;49;50;68m")
+ * @param {string} line
+ * @returns {string}
  */
-function applyBackground(lines, bgColor) {
-    return lines.map((line) => theme.bg(bgColor, line));
+function applyBg(bgCode, line) {
+    if (line.includes("\x1b[0m")) {
+        // deno-lint-ignore no-control-regex
+        return bgCode + line.replace(/\x1b\[0m/g, "\x1b[0m" + bgCode) + "\x1b[49m";
+    }
+    return bgCode + line + "\x1b[49m";
+}
+
+/** @type {Map<string, string>} */
+const bgCodeCache = new Map();
+
+/**
+ * Get the raw ANSI background open code for a theme color name.
+ * @param {string} bgColorName
+ * @returns {string}
+ */
+function getBgCode(bgColorName) {
+    const cached = bgCodeCache.get(bgColorName);
+    if (cached !== undefined) return cached;
+    // Render a single space with the bg to extract the open code
+    const rendered = theme.bg(bgColorName, " ");
+    // deno-lint-ignore no-control-regex
+    const match = rendered.match(/^(\x1b\[48;2;\d+;\d+;\d+m)/);
+    const code = match ? match[1] : "";
+    bgCodeCache.set(bgColorName, code);
+    return code;
 }
 
 /**
- * A block with a background color that stretches to full width.
+ * A block that applies a background color, horizontal/vertical padding,
+ * and stretches each line to the full available width.
+ *
+ * Handles embedded ANSI full-reset codes (\x1b[0m) from child components
+ * (e.g. pi-tui's truncateToWidth) by re-applying the bg after each reset.
  */
-export class ColoredBlock {
+export class StyledBlock {
     /**
-     * @param {string} bgColor
-     * @param {{ render: (w: number) => string[], invalidate?: () => void } | null | undefined} child - pi-tui component with render(w) method
-     */
-    constructor(bgColor, child) {
-        this.bgColor = bgColor;
-        this.child = child;
-    }
-
-    invalidate() {
-        if (this.child && typeof this.child.invalidate === "function") {
-            this.child.invalidate();
-        }
-    }
-
-    /** @param {number} w */
-    render(w) {
-        if (!this.child) return [];
-        const lines = this.child.render(w);
-        return applyBackground(lines, this.bgColor);
-    }
-}
-
-/**
- * A block that adds horizontal and vertical padding around a child.
- */
-export class PaddedBlock {
-    /**
-     * @param {number} paddingX
-     * @param {number} paddingY
+     * @param {string} bgColor - theme background color name (e.g. "surface0")
+     * @param {number} paddingX - horizontal padding (left and right)
+     * @param {number} paddingY - vertical padding (top and bottom empty lines)
      * @param {{ render: (w: number) => string[], invalidate?: () => void } | null | undefined} child
      */
-    constructor(paddingX, paddingY, child) {
+    constructor(bgColor, paddingX, paddingY, child) {
+        this.bgColor = bgColor;
         this.paddingX = paddingX;
         this.paddingY = paddingY;
         this.child = child;
+        /** @type {string} */
+        this._bgCode = getBgCode(bgColor);
     }
 
     invalidate() {
@@ -85,6 +114,7 @@ export class PaddedBlock {
     /** @param {number} w */
     render(w) {
         if (!this.child) return [];
+
         const innerW = Math.max(0, w - this.paddingX * 2);
         const innerLines = this.child.render(innerW);
 
@@ -92,20 +122,19 @@ export class PaddedBlock {
         const emptyLine = " ".repeat(w);
 
         const lines = innerLines.map((/** @type {string} */ line) => {
-            // deno-lint-ignore no-control-regex
-            const visibleLength = line.replace(/\x1b\[[0-9;]*m/g, "").length;
-            const rightPad = " ".repeat(Math.max(0, w - this.paddingX - visibleLength));
+            const rightPad = " ".repeat(Math.max(0, w - this.paddingX - visibleLength(line)));
             return padX + line + rightPad;
         });
 
-        const padY = [];
-        for (let i = 0; i < this.paddingY; i++) {
-            padY.push(emptyLine);
-        }
+        const padY = Array.from({ length: this.paddingY }, () => emptyLine);
 
-        return [...padY, ...lines, ...padY];
+        const bgCode = this._bgCode;
+        const allLines = [...padY, ...lines, ...padY];
+        return allLines.map((line) => applyBg(bgCode, line));
     }
 }
+
+// ─── Message Blocks ──────────────────────────────────────────────────────────
 
 /**
  * The User Prompt Block.
@@ -113,187 +142,9 @@ export class PaddedBlock {
 export class UserPromptBlock {
     /** @param {string} text */
     constructor(text) {
-        this.container = new Container();
-        this.container.addChild(new Text(theme.fg("text", text), 0, 0));
-
-        // Wrap the container in a colored block
-        this.block = new ColoredBlock("surface0", new PaddedBlock(2, 1, this.container));
-    }
-
-    invalidate() {
-        this.block.invalidate();
-    }
-
-    /** @param {number} w */
-    render(w) {
-        return this.block.render(w);
-    }
-}
-
-/**
- * The Tool Execution Block.
- * Contains a header (e.g. `ls .`), a body for streaming output, and a footer (`Took X.Xs`).
- */
-export class ToolExecutionBlock {
-    /**
-     * @param {string} toolName
-     * @param {string} argsStr
-     */
-    constructor(toolName, argsStr) {
-        this.container = new Container();
-
-        this.previewLineLimit = 6;
-        this.expanded = false;
-        this.durationStr = "";
-
-        // Header
-        const commandText = argsStr.trim();
-        const headerText = commandText ? `${toolName} ${commandText}` : toolName;
-        const normalBlockBg = "surface0";
-        this.header = new ColoredBlock(
-            normalBlockBg,
-            new PaddedBlock(2, 1, new Text(theme.fg("text", theme.bold(headerText)), 0, 0)),
-        );
-        this.container.addChild(this.header);
-
-        // Body
-        this.bodyContainer = new Container();
-        this.bodyBlock = new ColoredBlock("surface0", new PaddedBlock(2, 0, this.bodyContainer));
-        this.container.addChild(this.bodyBlock);
-
-        // Footer (left: duration, right: expand/collapse hint)
-        this.footerContainer = new Container();
-        this.footerLine = {
-            invalidate: () => {},
-            /** @param {number} w */
-            render: (w) => {
-                const canExpand = this.getOutputLines().length > this.previewLineLimit;
-                const left = this.durationStr ? theme.fg("dim", this.durationStr) : "";
-                const right = canExpand
-                    ? theme.fg("dim", this.expanded ? "press ctrl+o to collapse" : "press ctrl+o to expand")
-                    : "";
-
-                if (!left && !right) return [];
-
-                // deno-lint-ignore no-control-regex
-                const visibleLength = (/** @type {string} */ line) => line.replace(/\x1b\[[0-9;]*m/g, "").length;
-
-                if (!left) {
-                    const rightPad = " ".repeat(Math.max(0, w - visibleLength(right)));
-                    return [`${rightPad}${right}`];
-                }
-
-                if (!right) {
-                    return [left];
-                }
-
-                const leftLen = visibleLength(left);
-                const rightLen = visibleLength(right);
-
-                if (leftLen + 1 + rightLen <= w) {
-                    const spacing = " ".repeat(Math.max(1, w - leftLen - rightLen));
-                    return [`${left}${spacing}${right}`];
-                }
-
-                const rightPad = " ".repeat(Math.max(0, w - rightLen));
-                return [left, `${rightPad}${right}`];
-            },
-        };
-        this.footerContainer.addChild(this.footerLine);
-        this.footerBlock = new ColoredBlock(normalBlockBg, new PaddedBlock(2, 1, this.footerContainer));
-        this.container.addChild(this.footerBlock);
-
-        // Store body text
-        this.bodyText = "";
-        this.bodyTextComponent = new Text("", 0, 0);
-        this.bodyContainer.addChild(this.bodyTextComponent);
-
-        this.isError = false;
-
-        // For animation in footer, we can store startTime
-        this.startTime = Date.now();
-    }
-
-    /**
-     * @returns {string[]}
-     */
-    getOutputLines() {
-        if (!this.bodyText) return [];
-        return this.bodyText.replaceAll("\r\n", "\n").replaceAll("\r", "\n").split("\n");
-    }
-
-    updateBodyText() {
-        const lines = this.getOutputLines();
-        const shown = !this.expanded && lines.length > this.previewLineLimit
-            ? lines.slice(0, this.previewLineLimit)
-            : lines;
-        const renderedText = shown.join("\n");
-        this.bodyTextComponent.setText(
-            this.isError ? theme.fg("text", renderedText) : theme.fg("subtext0", renderedText),
-        );
-    }
-
-    /** @param {boolean} expanded */
-    setExpanded(expanded) {
-        this.expanded = expanded;
-        this.updateBodyText();
-        this.invalidate();
-    }
-
-    /** @param {string} text */
-    appendOutput(text) {
-        this.bodyText += text;
-        this.updateBodyText();
-        this.invalidate();
-    }
-
-    /**
-     * @param {boolean} isError
-     * @param {number} durationMs
-     */
-    endExecution(isError, durationMs) {
-        this.isError = isError;
-
-        if (isError) {
-            this.header.bgColor = "toolErrorBg";
-            this.bodyBlock.bgColor = "toolErrorBg";
-            this.footerBlock.bgColor = "toolErrorBg";
-        }
-
-        this.durationStr = `Took ${(durationMs / 1000).toFixed(1)}s`;
-        this.updateBodyText();
-        this.invalidate();
-    }
-
-    invalidate() {
-        this.container.invalidate();
-    }
-
-    /** @param {number} w */
-    render(w) {
-        return this.container.render(w);
-    }
-}
-
-/**
- * System Message Block.
- */
-export class SystemMessageBlock {
-    /**
-     * @param {string} text
-     * @param {boolean} [isError=false]
-     */
-    constructor(text, isError = false) {
-        this.container = new Container();
-        this.isError = isError;
-        this.container.addChild(new Text(formatSystemLine(text, isError), 0, 0));
-        this.block = new ColoredBlock("mantle", new PaddedBlock(2, 1, this.container));
-    }
-
-    /** @param {string} text */
-    appendText(text) {
-        this.container.addChild(new Text(formatSystemLine(text, this.isError), 0, 0));
-        this.invalidate();
+        this.content = new Container();
+        this.content.addChild(new Text(theme.fg("text", text), 0, 0));
+        this.block = new StyledBlock("surface0", 2, 1, this.content);
     }
 
     invalidate() {
@@ -319,12 +170,11 @@ export class AgentMessageBlock {
         }
 
         this.currentText = "";
-        // We override theme to ensure code blocks and lists look good with catppuccin
         this.markdown = new Markdown("", 0, 0, markdownTheme);
         this.container.addChild(this.markdown);
         this.container.addChild(new Spacer(1));
 
-        this.block = new ColoredBlock("crust", new PaddedBlock(2, 1, this.container));
+        this.block = new StyledBlock("crust", 2, 1, this.container);
     }
 
     /** @param {string} delta */
@@ -345,17 +195,200 @@ export class AgentMessageBlock {
 }
 
 /**
+ * System Message Block.
+ */
+export class SystemMessageBlock {
+    /**
+     * @param {string} text
+     * @param {boolean} [isError=false]
+     */
+    constructor(text, isError = false) {
+        this.container = new Container();
+        this.isError = isError;
+        this.container.addChild(new Text(formatSystemLine(text, isError), 0, 0));
+        this.block = new StyledBlock("mantle", 2, 1, this.container);
+    }
+
+    /** @param {string} text */
+    appendText(text) {
+        this.container.addChild(new Text(formatSystemLine(text, this.isError), 0, 0));
+        this.invalidate();
+    }
+
+    invalidate() {
+        this.block.invalidate();
+    }
+
+    /** @param {number} w */
+    render(w) {
+        return this.block.render(w);
+    }
+}
+
+// ─── Tool Execution Block ────────────────────────────────────────────────────
+
+/**
+ * The Tool Execution Block.
+ * Contains a header (tool name + args), a body for streaming output, and a footer (duration + expand hint).
+ */
+export class ToolExecutionBlock {
+    /**
+     * @param {string} toolName
+     * @param {string} argsStr
+     */
+    constructor(toolName, argsStr) {
+        this.previewLineLimit = 6;
+        this.expanded = false;
+        this.durationStr = "";
+        this.bodyText = "";
+        this.isError = false;
+        this.startTime = Date.now();
+        this.bgColor = "toolBg";
+
+        // Header text
+        const commandText = argsStr.trim();
+        this.headerText = commandText ? `${toolName} ${commandText}` : toolName;
+
+        // Body text component (rendered inside the block)
+        this.bodyTextComponent = new Text("", 0, 0);
+    }
+
+    /**
+     * @returns {string[]}
+     */
+    getOutputLines() {
+        if (!this.bodyText) return [];
+        return this.bodyText.replaceAll("\r\n", "\n").replaceAll("\r", "\n").split("\n");
+    }
+
+    /** @private */
+    updateBodyText() {
+        const lines = this.getOutputLines();
+        const shown = !this.expanded && lines.length > this.previewLineLimit
+            ? lines.slice(0, this.previewLineLimit)
+            : lines;
+        const renderedText = shown.join("\n");
+        this.bodyTextComponent.setText(
+            this.isError ? theme.fg("text", renderedText) : theme.fg("subtext0", renderedText),
+        );
+    }
+
+    /** @param {boolean} expanded */
+    setExpanded(expanded) {
+        this.expanded = expanded;
+        this.updateBodyText();
+    }
+
+    /** @param {string} text */
+    appendOutput(text) {
+        // Strip ANSI codes from tool output to prevent embedded resets (\x1b[0m)
+        // from breaking the block's background coloring.
+        this.bodyText += stripAnsi(text);
+        this.updateBodyText();
+    }
+
+    /**
+     * @param {boolean} isError
+     * @param {number} durationMs
+     */
+    endExecution(isError, durationMs) {
+        this.isError = isError;
+        if (isError) {
+            this.bgColor = "toolErrorBg";
+        }
+        this.durationStr = `Took ${(durationMs / 1000).toFixed(1)}s`;
+        this.updateBodyText();
+    }
+
+    invalidate() {}
+
+    /** @param {number} w */
+    render(w) {
+        const bg = this.bgColor;
+        const paddingX = 2;
+        const innerW = Math.max(0, w - paddingX * 2);
+
+        /** @type {string[]} */
+        const allLines = [];
+
+        // ── Header: bold tool name, with vertical padding ──
+        const headerLine = theme.fg("text", theme.bold(this.headerText));
+        const headerBlock = new StyledBlock(bg, paddingX, 1, { render: () => [headerLine], invalidate: () => {} });
+        allLines.push(...headerBlock.render(w));
+
+        // ── Body: tool output (no vertical padding) ──
+        if (this.bodyText) {
+            const bgCode = getBgCode(bg);
+            const bodyLines = this.bodyTextComponent.render(innerW);
+            const padX = " ".repeat(paddingX);
+            for (const line of bodyLines) {
+                const rightPad = " ".repeat(Math.max(0, w - paddingX - visibleLength(line)));
+                allLines.push(applyBg(bgCode, padX + line + rightPad));
+            }
+        }
+
+        // ── Footer: duration + expand/collapse hint, with vertical padding ──
+        const footerContent = this.renderFooterContent(innerW);
+        if (footerContent.length > 0) {
+            const footerBlock = new StyledBlock(bg, paddingX, 1, {
+                render: () => footerContent,
+                invalidate: () => {},
+            });
+            allLines.push(...footerBlock.render(w));
+        }
+
+        return allLines;
+    }
+
+    /**
+     * Render the footer content lines (duration left, expand hint right).
+     * @param {number} innerW
+     * @returns {string[]}
+     * @private
+     */
+    renderFooterContent(innerW) {
+        const canExpand = this.getOutputLines().length > this.previewLineLimit;
+        const left = this.durationStr ? theme.fg("dim", this.durationStr) : "";
+        const right = canExpand
+            ? theme.fg("dim", this.expanded ? "press ctrl+o to collapse" : "press ctrl+o to expand")
+            : "";
+
+        if (!left && !right) return [];
+
+        if (!left) {
+            const rightPad = " ".repeat(Math.max(0, innerW - visibleLength(right)));
+            return [`${rightPad}${right}`];
+        }
+
+        if (!right) return [left];
+
+        const leftLen = visibleLength(left);
+        const rightLen = visibleLength(right);
+
+        if (leftLen + 1 + rightLen <= innerW) {
+            const spacing = " ".repeat(Math.max(1, innerW - leftLen - rightLen));
+            return [`${left}${spacing}${right}`];
+        }
+
+        const rightPad = " ".repeat(Math.max(0, innerW - rightLen));
+        return [left, `${rightPad}${right}`];
+    }
+}
+
+// ─── Prompt Blocks ───────────────────────────────────────────────────────────
+
+/**
  * SelectList subclass that filters by substring across value, label, and description.
  */
 class SearchableSelectList extends SelectList {
     /**
      * @param {import("@mariozechner/pi-tui").SelectItem[]} items
      * @param {number} maxVisible
-     * @param {import("@mariozechner/pi-tui").SelectListTheme} theme
+     * @param {import("@mariozechner/pi-tui").SelectListTheme} slTheme
      * @param {import("@mariozechner/pi-tui").SelectListLayoutOptions} [layout]
      */
-    constructor(items, maxVisible, theme, layout = {}) {
-        super(items, maxVisible, theme, layout);
+    constructor(items, maxVisible, slTheme, layout = {}) {
+        super(items, maxVisible, slTheme, layout);
     }
 
     /** @override */
@@ -387,23 +420,22 @@ export class PromptSelectBlock {
 
         // Header
         const headerText = theme.fg("text", theme.bold(promptTitle));
-        this.header = new ColoredBlock("surface1", new PaddedBlock(2, 1, new Text(headerText, 0, 0)));
+        this.header = new StyledBlock("surface1", 2, 1, new Text(headerText, 0, 0));
         this.container.addChild(this.header);
 
         // Search input
         this.input = new Input();
-        this.searchBlock = new ColoredBlock("surface0", new PaddedBlock(2, 0, this.input));
+        this.searchBlock = new StyledBlock("surface1", 2, 0, this.input);
         this.container.addChild(this.searchBlock);
 
         // Body with SelectList
         this.list = new SearchableSelectList(items, Math.min(items.length, 10), selectListTheme);
-
-        this.bodyBlock = new ColoredBlock("surface0", new PaddedBlock(2, 0, this.list));
+        this.bodyBlock = new StyledBlock("surface1", 2, 0, this.list);
         this.container.addChild(this.bodyBlock);
 
         // Footer with hint
         const hintText = hint || "Type to search, arrows to navigate, Enter to select, Esc to cancel";
-        this.footer = new ColoredBlock("surface1", new PaddedBlock(2, 1, new Text(theme.fg("dim", hintText), 0, 0)));
+        this.footer = new StyledBlock("surface1", 2, 1, new Text(theme.fg("dim", hintText), 0, 0));
         this.container.addChild(this.footer);
 
         this.settled = false;
@@ -432,15 +464,11 @@ export class PromptSelectBlock {
     settle(value) {
         this.settled = true;
         this.chosenValue = value;
-        // Strip out the interactive parts to leave a single-line summary
         this.container.children = [];
-        let summaryText;
-        if (value === null) {
-            summaryText = theme.fg("surface2", "(Cancelled)");
-        } else {
-            summaryText = theme.fg("text", value);
+        if (value !== null) {
+            const summaryText = theme.fg("text", value);
+            this.container.addChild(new StyledBlock("surface1", 2, 1, new Text(summaryText, 0, 0)));
         }
-        this.container.addChild(new ColoredBlock("surface0", new PaddedBlock(2, 1, new Text(summaryText, 0, 0))));
         this.invalidate();
     }
 
@@ -497,17 +525,17 @@ export class PromptTextBlock {
 
         // Header
         const headerText = theme.fg("text", theme.bold(promptTitle));
-        this.header = new ColoredBlock("surface1", new PaddedBlock(2, 1, new Text(headerText, 0, 0)));
+        this.header = new StyledBlock("surface1", 2, 1, new Text(headerText, 0, 0));
         this.container.addChild(this.header);
 
         // Body with Input
         this.input = new Input();
-        this.bodyBlock = new ColoredBlock("surface0", new PaddedBlock(2, 0, this.input));
+        this.bodyBlock = new StyledBlock("surface1", 2, 0, this.input);
         this.container.addChild(this.bodyBlock);
 
         // Footer with hint
         const hintText = hint || "Enter text and press Enter, Esc to cancel";
-        this.footer = new ColoredBlock("surface1", new PaddedBlock(2, 1, new Text(theme.fg("dim", hintText), 0, 0)));
+        this.footer = new StyledBlock("surface1", 2, 1, new Text(theme.fg("dim", hintText), 0, 0));
         this.container.addChild(this.footer);
 
         this.settled = false;
@@ -521,15 +549,11 @@ export class PromptTextBlock {
     settle(value) {
         this.settled = true;
         this.chosenValue = value;
-        // Strip out the interactive parts to leave a single-line summary
         this.container.children = [];
-        let summaryText;
-        if (value === null) {
-            summaryText = theme.fg("surface2", "(Cancelled)");
-        } else {
-            summaryText = theme.fg("text", value);
+        if (value !== null) {
+            const summaryText = theme.fg("text", value);
+            this.container.addChild(new StyledBlock("surface1", 2, 1, new Text(summaryText, 0, 0)));
         }
-        this.container.addChild(new ColoredBlock("surface0", new PaddedBlock(2, 1, new Text(summaryText, 0, 0))));
         this.invalidate();
     }
 
@@ -556,6 +580,9 @@ export class PromptTextBlock {
         return this.container.render(w);
     }
 }
+
+// ─── Spinner Block ───────────────────────────────────────────────────────────
+
 export class SpinnerBlock {
     constructor() {
         this.frame = 0;
@@ -593,16 +620,12 @@ export class SpinnerBlock {
             return this.tasks.map((t) => {
                 const line = theme.fg("accent", f) + " " + theme.fg("success", t.assignee) + " " +
                     theme.fg("dim", `(Task ${t.task})`);
-                // deno-lint-ignore no-control-regex
-                const padded = line + " ".repeat(Math.max(0, w - line.replace(/\x1b\[[0-9;]*m/g, "").length));
-                return padded;
+                return line + " ".repeat(Math.max(0, w - visibleLength(line)));
             });
         }
 
         // Generic busy spinner
         const line = theme.fg("accent", `${f} Thinking...`);
-        // deno-lint-ignore no-control-regex
-        const padded = line + " ".repeat(Math.max(0, w - line.replace(/\x1b\[[0-9;]*m/g, "").length));
-        return [padded];
+        return [line + " ".repeat(Math.max(0, w - visibleLength(line)))];
     }
 }

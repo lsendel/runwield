@@ -162,7 +162,8 @@ Deno.test("runResumeCommand approved plan view then cancel", async () => {
     });
 
     assertEquals(messages.some((m) => m.includes("plan body content")), true);
-    assertEquals(messages.some((m) => m.includes("Resume canceled")), true);
+    // Esc cancels silently (no "Resume canceled" message)
+    assertEquals(messages.some((m) => m.includes("Resume canceled")), false);
 });
 
 Deno.test("runResumeCommand approved review uses shared lifecycle (no rerun hint)", async () => {

@@ -138,7 +138,7 @@ export async function runResumeCommand(argv, options = {}) {
 
             const chosen = await options.uiAPI.promptSelect("Resume plan:", planOptions);
             if (!chosen) {
-                options.uiAPI.appendSystemMessage("Resume canceled.");
+                // User pressed Esc — silently cancel
                 options.editor.setText("");
                 options.editor.disableSubmit = false;
                 return;
@@ -191,7 +191,7 @@ export async function runResumeCommand(argv, options = {}) {
                 ]);
 
                 if (!answer) {
-                    uiAPI.appendSystemMessage("[Harns] Resume canceled.");
+                    // User pressed Esc — silently cancel
                     return;
                 }
 
