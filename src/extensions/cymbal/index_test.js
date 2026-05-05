@@ -7,7 +7,7 @@ import cymbalExtension from "./index.js";
 function setup(execImpl) {
     /** @type {Map<string, (event: any, ctx: any) => any>} */
     const handlers = new Map();
-    /** @type {Array<{ name: string, execute: (id: string, params: object, signal: AbortSignal, onUpdate: () => void, context: object) => Promise<{ content: Array<{ type: string, text?: string }>, details: object | null }>, label: string, description: string, parameters: object }>} */
+    /** @type {Array<any>} */
     const tools = [];
     /** @type {Array<{command: string, args: string[], opts: { cwd: string }}>} */
     const calls = [];
@@ -17,7 +17,7 @@ function setup(execImpl) {
             handlers.set(event, handler);
         },
         registerTool(tool) {
-            tools.push(/** @type {typeof tools[number]} */ (tool));
+            tools.push(tool);
         },
         async exec(
             /** @type {string} */ command,

@@ -175,7 +175,7 @@ export default function cymbalExtension(pi) {
     // Tools
     pi.registerTool({
         ...codeSearchToolDef,
-        async execute(_toolCallId, params) {
+        async execute(_toolCallId, /** @type {any} */ params) {
             const args = ["search"];
             if (params.textSearch) {
                 args.push("--text");
@@ -192,7 +192,7 @@ export default function cymbalExtension(pi) {
 
     pi.registerTool({
         ...codeStructureToolDef,
-        async execute(_toolCallId, params) {
+        async execute(_toolCallId, /** @type {any} */ params) {
             const result = await runCymbal("structure");
             return {
                 content: [{ type: "text", text: result.trim() || "No results found." }],
@@ -203,7 +203,7 @@ export default function cymbalExtension(pi) {
 
     pi.registerTool({
         ...codeImplsToolDef,
-        async execute(_toolCallId, params) {
+        async execute(_toolCallId, /** @type {any} */ params) {
             const result = await runCymbal("impls", params.symbol);
             return {
                 content: [{ type: "text", text: result.trim() || "No results found." }],
@@ -214,7 +214,7 @@ export default function cymbalExtension(pi) {
 
     pi.registerTool({
         ...codeImportersToolDef,
-        async execute(_toolCallId, params) {
+        async execute(_toolCallId, /** @type {any} */ params) {
             const result = await runCymbal("importers", params.target);
             return {
                 content: [{ type: "text", text: result.trim() || "No results found." }],
@@ -225,7 +225,7 @@ export default function cymbalExtension(pi) {
 
     pi.registerTool({
         ...codeShowToolDef,
-        async execute(_toolCallId, params) {
+        async execute(_toolCallId, /** @type {any} */ params) {
             const result = await runCymbal("show", params.target);
             return {
                 content: [{ type: "text", text: result.trim() || "No results found." }],
@@ -236,7 +236,7 @@ export default function cymbalExtension(pi) {
 
     pi.registerTool({
         ...codeOutlineToolDef,
-        async execute(_toolCallId, params) {
+        async execute(_toolCallId, /** @type {any} */ params) {
             const result = await runCymbal("outline", params.file);
             return {
                 content: [{ type: "text", text: result.trim() || "No results found." }],
@@ -247,7 +247,7 @@ export default function cymbalExtension(pi) {
 
     pi.registerTool({
         ...codeRefsToolDef,
-        async execute(_toolCallId, params) {
+        async execute(_toolCallId, /** @type {any} */ params) {
             const result = await runCymbal("refs", params.symbol);
             return {
                 content: [{ type: "text", text: result.trim() || "No results found." }],
@@ -258,7 +258,7 @@ export default function cymbalExtension(pi) {
 
     pi.registerTool({
         ...codeImpactToolDef,
-        async execute(_toolCallId, params) {
+        async execute(_toolCallId, /** @type {any} */ params) {
             const result = await runCymbal("impact", params.symbol);
             return {
                 content: [{ type: "text", text: result.trim() || "No results found." }],
@@ -269,7 +269,7 @@ export default function cymbalExtension(pi) {
 
     pi.registerTool({
         ...codeTraceToolDef,
-        async execute(_toolCallId, params) {
+        async execute(_toolCallId, /** @type {any} */ params) {
             const result = await runCymbal("trace", params.symbol);
             return {
                 content: [{ type: "text", text: result.trim() || "No results found." }],
@@ -280,7 +280,7 @@ export default function cymbalExtension(pi) {
 
     pi.registerTool({
         ...codeInvestigateToolDef,
-        async execute(_toolCallId, params) {
+        async execute(_toolCallId, /** @type {any} */ params) {
             const result = await runCymbal("investigate", params.symbol);
             return {
                 content: [{ type: "text", text: result.trim() || "No results found." }],

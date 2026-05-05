@@ -147,7 +147,7 @@ export default function mnemosyneExtension(pi) {
 
     pi.registerTool({
         ...memoryRecallToolDef,
-        async execute(_toolCallId, params) {
+        async execute(_toolCallId, /** @type {any} */ params) {
             const safeQuery = `"${params.query.replaceAll('"', '""')}"`;
             const result = await mnemosyne(
                 "search",
@@ -169,7 +169,7 @@ export default function mnemosyneExtension(pi) {
 
     pi.registerTool({
         ...memoryRecallGlobalToolDef,
-        async execute(_toolCallId, params) {
+        async execute(_toolCallId, /** @type {any} */ params) {
             const safeQuery = `"${params.query.replaceAll('"', '""')}"`;
             const result = await mnemosyne(
                 "search",
@@ -190,7 +190,7 @@ export default function mnemosyneExtension(pi) {
 
     pi.registerTool({
         ...memoryStoreToolDef,
-        async execute(_toolCallId, params) {
+        async execute(_toolCallId, /** @type {any} */ params) {
             const args = ["add", "--name", projectName];
             if (params.core) args.push("--tag", "core");
             args.push(params.content);
@@ -207,7 +207,7 @@ export default function mnemosyneExtension(pi) {
 
     pi.registerTool({
         ...memoryStoreGlobalToolDef,
-        async execute(_toolCallId, params) {
+        async execute(_toolCallId, /** @type {any} */ params) {
             try {
                 await mnemosyne("init", "--global");
             } catch {
@@ -230,7 +230,7 @@ export default function mnemosyneExtension(pi) {
 
     pi.registerTool({
         ...memoryDeleteToolDef,
-        async execute(_toolCallId, params) {
+        async execute(_toolCallId, /** @type {any} */ params) {
             const result = await mnemosyne("delete", String(params.id));
 
             return {
