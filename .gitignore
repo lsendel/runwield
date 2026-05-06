@@ -2,6 +2,8 @@
 
 bin/
 
-.history
+.history/
+.pi/
+.hns/
 
 debug.log
