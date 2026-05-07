@@ -39,13 +39,17 @@ Existing functions, modules, or patterns to reuse:
 
 Tasks must form a Directed Acyclic Graph (DAG). Do not combine tasks that can be done in parallel.
 
-| Task | Assignee   | Dependencies | Description                  |
-| ---- | ---------- | ------------ | ---------------------------- |
-| 1    | engineer   | none         | Scaffold database schemas... |
-| 2    | tester     | 1            | Write DB unit tests...       |
-| 3    | doc-writer | none         | Update API documentation...  |
+| Task | Assignee   | Dependencies | Description                                                                                                                            |
+| ---- | ---------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | engineer   | none         | Scaffold database schemas...                                                                                                           |
+| 2    | tester     | 1            | Write DB unit tests...                                                                                                                 |
+| 3    | doc-writer | none         | Update API documentation...                                                                                                            |
+| 4    | tester     | 1, 2, 3      | Run the project's full verification command (e.g. `deno run ci`). Report any failures explicitly so a follow-up engineer task can fix. |
 
 _Allowed Assignees: `engineer`, `tester`, `doc-writer`._
+
+The final row above is the **mandatory global verification task**: every PROJECT plan must end with a `tester` task
+that depends on all prior tasks and runs the project's full verification command.
 
 ## Verification Plan
 

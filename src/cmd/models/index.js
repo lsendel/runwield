@@ -41,38 +41,14 @@ export async function runModelsCommand(argv, options = {}) {
 
     if (!firstArg) {
         if (uiAPI && editor) {
-            const models = modelRegistry.getAvailable();
-
-            if (models.length === 0) {
-                uiAPI.appendSystemMessage("No models available.");
-                editor.setText("");
-                editor.disableSubmit = false;
-                return;
+            if (uiAPI.showModelSelector) {
+                uiAPI.showModelSelector();
+            } else {
+                uiAPI.appendSystemMessage("Model selector not available.");
             }
-
-            const modelOptions = models
-                .sort((modelA, modelB) => modelA.id.localeCompare(modelB.id))
-                .map((model) => ({
-                    value: `${model.provider}/${model.id}`,
-                    label: `${model.provider}/${model.id}`,
-                    description: model.name,
-                }));
-
-            const choice = await uiAPI.promptSelect("Switch model:", modelOptions);
-            if (!choice) {
-                editor.setText("");
-                editor.disableSubmit = false;
-                return;
-            }
-
-            targetModel = models.find((model) => `${model.provider}/${model.id}` === choice || model.id === choice);
-
-            if (!targetModel) {
-                uiAPI.appendSystemMessage(`Unknown model: ${choice}.`);
-                editor.setText("");
-                editor.disableSubmit = false;
-                return;
-            }
+            editor.setText("");
+            editor.disableSubmit = false;
+            return;
         } else {
             console.log("Usage: hns model <provider>/<model_id>");
             return;

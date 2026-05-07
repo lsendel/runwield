@@ -427,6 +427,7 @@ async function executeProjectTasks(
                         requestRender: () => {},
                         promptSelect: () => Promise.resolve(null),
                         promptText: () => Promise.resolve(null),
+                        showModelSelector: () => {},
                     }
                     : undefined;
 

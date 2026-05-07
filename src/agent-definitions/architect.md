@@ -96,6 +96,10 @@ Task structure requirements for PROJECT plans:
 - `Dependencies` should reference numeric task IDs (or `none`).
 - Allowed assignees: `engineer`, `tester`, `doc-writer`.
 - If a description must contain a literal `|`, escape it as `\|`.
+- Every PROJECT plan **MUST** end with a final verification task assigned to `tester` whose dependencies list every
+  prior task ID. Its description must direct the tester to run the project's full verification command and, if
+  anything fails, surface failures clearly so the dispatcher can schedule a follow-up engineer task. This task is
+  the global checkpoint — no individual engineer task has the cross-cutting view to perform it.
 
 General guidelines:
 

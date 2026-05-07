@@ -10,12 +10,13 @@ function makeUi() {
     return {
         messages,
         selections,
-        uiAPI: /** @type {import('../../shared/workflow/workflow.js').UiAPI} */ ({
+        uiAPI: /** @type {import('../../shared/ui/types.js').UiAPI} */ ({
             appendSystemMessage: (msg) => messages.push(String(msg)),
             appendAgentMessageStart: () => ({ appendText: () => {} }),
             requestRender: () => {},
             promptSelect: () => Promise.resolve(selections.shift() ?? null),
             promptText: () => Promise.resolve(null),
+            showModelSelector: () => {},
         }),
     };
 }

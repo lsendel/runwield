@@ -263,6 +263,7 @@ export function createUiApi(tui, messageList, spinner) {
         setAgentInfo: () => {},
         disableInput: () => {},
         enableInput: () => {},
+        showModelSelector: () => {},
         appendImage: () => {}, // chat-session implements this currently
     };
 }

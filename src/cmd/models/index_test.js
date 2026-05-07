@@ -14,12 +14,13 @@ function makeUi() {
         handleInput: () => {},
     });
 
-    const uiAPI = /** @type {import('../../shared/workflow/workflow.js').UiAPI} */ ({
+    const uiAPI = /** @type {import('../../shared/ui/types.js').UiAPI} */ ({
         appendSystemMessage: (msg) => messages.push(String(msg)),
         appendAgentMessageStart: () => ({ appendText: () => {} }),
         requestRender: () => {},
         promptSelect: () => Promise.resolve(selections.shift() ?? null),
         promptText: () => Promise.resolve(null),
+        showModelSelector: () => {},
     });
 
     return { messages, selections, uiAPI, editor };
@@ -37,6 +38,7 @@ Deno.test("runModelsCommand rejects bare model id in ui mode", async () => {
             requestRender: () => {},
             promptSelect: () => Promise.resolve(null),
             promptText: () => Promise.resolve(null),
+            showModelSelector: () => {},
         },
     });
 

@@ -12,8 +12,9 @@
     "jsr:@std/path@1": "1.1.4",
     "jsr:@std/toml@^1.0.3": "1.0.11",
     "jsr:@std/yaml@^1.0.5": "1.1.0",
-    "npm:@gandazgul/plannotator-pi-extension-compiled@1": "1.0.0_@mariozechner+pi-agent-core@0.73.0__zod@4.4.3_@mariozechner+pi-ai@0.73.0__zod@4.4.3_@mariozechner+pi-coding-agent@0.73.0__zod@4.4.3_@mariozechner+pi-tui@0.73.0_zod@4.4.3",
+    "npm:@gandazgul/plannotator-pi-extension-compiled@1": "1.0.1_@mariozechner+pi-agent-core@0.73.0__zod@4.4.3_@mariozechner+pi-ai@0.73.0__zod@4.4.3_@mariozechner+pi-coding-agent@0.73.0__zod@4.4.3_@mariozechner+pi-tui@0.73.0",
     "npm:@gandazgul/plannotator-pi-extension-compiled@1.0.0": "1.0.0_@mariozechner+pi-agent-core@0.73.0__zod@4.4.3_@mariozechner+pi-ai@0.73.0__zod@4.4.3_@mariozechner+pi-coding-agent@0.73.0__zod@4.4.3_@mariozechner+pi-tui@0.73.0_zod@4.4.3",
+    "npm:@gandazgul/plannotator-pi-extension-compiled@^1.0.1": "1.0.1_@mariozechner+pi-agent-core@0.73.0__zod@4.4.3_@mariozechner+pi-ai@0.73.0__zod@4.4.3_@mariozechner+pi-coding-agent@0.73.0__zod@4.4.3_@mariozechner+pi-tui@0.73.0",
     "npm:@joplin/turndown-plugin-gfm@^1.0.64": "1.0.64",
     "npm:@mariozechner/pi-agent-core@0.73": "0.73.0_zod@4.4.3",
     "npm:@mariozechner/pi-ai@0.73": "0.73.0_zod@4.4.3",
@@ -552,6 +553,17 @@
     },
     "@gandazgul/plannotator-pi-extension-compiled@1.0.0_@mariozechner+pi-agent-core@0.73.0__zod@4.4.3_@mariozechner+pi-ai@0.73.0__zod@4.4.3_@mariozechner+pi-coding-agent@0.73.0__zod@4.4.3_@mariozechner+pi-tui@0.73.0_zod@4.4.3": {
       "integrity": "sha512-r++VDVcosSDe/zUPmxUDaVYi7TlN5yV9dAJu4wzNUxAxatHtTp8Obg7wA/RwHyDiliF/srreLNV3R5WalA87vQ==",
+      "dependencies": [
+        "@joplin/turndown-plugin-gfm",
+        "@mariozechner/pi-agent-core",
+        "@mariozechner/pi-ai",
+        "@mariozechner/pi-coding-agent",
+        "@mariozechner/pi-tui",
+        "turndown"
+      ]
+    },
+    "@gandazgul/plannotator-pi-extension-compiled@1.0.1_@mariozechner+pi-agent-core@0.73.0__zod@4.4.3_@mariozechner+pi-ai@0.73.0__zod@4.4.3_@mariozechner+pi-coding-agent@0.73.0__zod@4.4.3_@mariozechner+pi-tui@0.73.0": {
+      "integrity": "sha512-NYyi6Apfk1mVIuUvmvt+fujptXncP0HFW2yzEQ/a7jYe2xZ6NwK74VLBFGuB2aO8cdIRRbZ/gn4Wnyz9lenlFA==",
       "dependencies": [
         "@joplin/turndown-plugin-gfm",
         "@mariozechner/pi-agent-core",
@@ -1947,6 +1959,7 @@
       "jsr:@std/front-matter@1",
       "jsr:@std/path@1",
       "npm:@gandazgul/plannotator-pi-extension-compiled@1",
+      "npm:@gandazgul/plannotator-pi-extension-compiled@^1.0.1",
       "npm:@joplin/turndown-plugin-gfm@^1.0.64",
       "npm:@mariozechner/pi-agent-core@0.73",
       "npm:@mariozechner/pi-ai@0.73",

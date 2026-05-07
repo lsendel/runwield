@@ -51,6 +51,7 @@ Deno.test("switchAgentTool handles router switch with mock UI API", async () => 
         appendAgentMessageStart: () => ({ appendText: () => {} }),
         promptSelect: () => Promise.resolve(null),
         promptText: () => Promise.resolve(null),
+        showModelSelector: () => {},
     };
 
     // Set mock UI API
@@ -78,6 +79,7 @@ Deno.test("switchAgentTool updates active model when switching to agent with dec
         appendAgentMessageStart: () => ({ appendText: () => {} }),
         promptSelect: () => Promise.resolve(null),
         promptText: () => Promise.resolve(null),
+        showModelSelector: () => {},
     };
 
     setActiveAgent("Router", async () => {}, mockUiAPI);
@@ -108,6 +110,7 @@ Deno.test("executeSwitchAgent succeeds when given a direct uiAPI without global 
         appendAgentMessageStart: () => ({ appendText: () => {} }),
         promptSelect: () => Promise.resolve(null),
         promptText: () => Promise.resolve(null),
+        showModelSelector: () => {},
     };
 
     // Ensure global state is NOT set
@@ -143,6 +146,7 @@ Deno.test("executeSwitchAgent returns unknown-agent error with available list", 
         appendAgentMessageStart: () => ({ appendText: () => {} }),
         promptSelect: () => Promise.resolve(null),
         promptText: () => Promise.resolve(null),
+        showModelSelector: () => {},
     };
 
     const result = await executeSwitchAgent(
