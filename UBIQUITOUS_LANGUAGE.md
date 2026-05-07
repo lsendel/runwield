@@ -28,7 +28,7 @@
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
 | **Plan**         | A markdown file in `plans/` with YAML front matter that describes an implementation strategy for a request.                         | Blueprint, spec, design doc   |
 | **Front Matter** | YAML metadata at the top of a plan file containing classification, complexity, status, and timestamps.                              | Metadata, header, YAML block  |
-| **Plan Status**  | The lifecycle state of a plan: `draft`, `in_review`, `approved`, or `denied`.                                                       | Phase, stage                  |
+| **Plan Status**  | The lifecycle state of a plan: `draft`, `in_review`, `approved`, or `completed`.                                                    | Phase, stage                  |
 | **Review Loop**  | The iterative cycle where an agent writes/revises a plan and the user approves or denies it via Plannotator.                        | Feedback loop, approval cycle |
 | **Plannotator**  | The browser-based review UI where users approve, deny, or annotate a plan.                                                          | Review UI, approval screen    |
 | **Feedback**     | Structured annotations returned by the user when denying a plan in Plannotator.                                                     | Comments, annotations, notes  |

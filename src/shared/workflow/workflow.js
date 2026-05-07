@@ -10,6 +10,7 @@
  */
 
 import { join } from "@std/path";
+import quikdownAst from "quikdown/ast";
 import { CWD, MAX_PARALLEL_TASKS } from "../../constants.js";
 import { loadPlan, updatePlanStatus } from "../../plan-store.js";
 import { runAgentSession } from "../session/session.js";
@@ -131,35 +132,76 @@ export async function askPostApproval(planName, uiAPI) {
 }
 
 /**
- * Parse PROJECT task table from plan markdown body with validation.
+ * Flatten a quikdown inline-node array into a plain string. Preserves text and
+ * inline code; ignores formatting wrappers we don't care about for tasks.
+ *
+ * @param {Array<{ type: string, value?: string, children?: any[] }>} nodes
+ * @returns {string}
+ */
+function inlineNodesToText(nodes) {
+    if (!Array.isArray(nodes)) return "";
+    return nodes.map((n) => {
+        if (typeof n?.value === "string") return n.value;
+        if (Array.isArray(n?.children)) return inlineNodesToText(n.children);
+        return "";
+    }).join("").trim();
+}
+
+/**
+ * Parse the PROJECT Tasks table from a plan's markdown using a forgiving AST
+ * parser. The plan must contain a `### Tasks` heading followed by a table with
+ * columns: Task | Assignee | Dependencies | Description.
  *
  * @param {string} planContent
  * @returns {Array<{ task: number, assignee: string, dependencies: string, description: string }>}
- * @throws {Error} If task table is malformed for a PROJECT plan.
+ * @throws {Error} If a Tasks section + table can't be located or parsed.
  */
 export function extractTasks(planContent) {
-    const tasks =
-        /** @type {Array<{ task: number, assignee: string, dependencies: string, description: string }>} */ ([]);
-    const taskSection = planContent.match(
-        /### Tasks\s*\n([\s\S]*?)(?=\n(?:###|##)[^\n]*|\n*$)/,
-    );
+    /** @type {{ type: string, children?: any[], level?: number, headers?: any[][], rows?: any[][][] }} */
+    const ast = quikdownAst(planContent);
+    const children = Array.isArray(ast.children) ? ast.children : [];
 
-    if (!taskSection) {
+    let tasksHeadingIdx = -1;
+    for (let i = 0; i < children.length; i++) {
+        const n = children[i];
+        if (n.type === "heading" && /^tasks$/i.test(inlineNodesToText(n.children || []))) {
+            tasksHeadingIdx = i;
+            break;
+        }
+    }
+
+    if (tasksHeadingIdx === -1) {
         throw new Error(
-            "Tasks table not found. PROJECT plans must include a '### Tasks' section with a formatted table.",
+            "Tasks section not found. PROJECT plans must include a '### Tasks' heading followed by a markdown table.",
         );
     }
 
-    const rows = taskSection[1].matchAll(
-        /\|\s*(\d+)\s*\|\s*(\w[\w-]*)\s*\|\s*([^|]*?)\s*\|\s*([^|]*?)\s*(?:\|)?\s*$/gm,
-    );
+    /** @type {{ type: string, headers?: any[][], rows?: any[][][] } | null} */
+    let tableNode = null;
+    for (let i = tasksHeadingIdx + 1; i < children.length; i++) {
+        const n = children[i];
+        if (n.type === "table") {
+            tableNode = n;
+            break;
+        }
+        if (n.type === "heading") break;
+    }
 
-    for (const match of rows) {
+    if (!tableNode || !Array.isArray(tableNode.rows)) {
+        throw new Error("Tasks section found but no markdown table follows the heading.");
+    }
+
+    const tasks = [];
+    for (const row of tableNode.rows) {
+        if (!Array.isArray(row) || row.length < 4) continue;
+        const taskCell = inlineNodesToText(row[0]);
+        const taskId = parseInt(taskCell, 10);
+        if (Number.isNaN(taskId)) continue; // skip non-numeric rows (e.g. separator-style)
         tasks.push({
-            task: parseInt(match[1]),
-            assignee: match[2].trim(),
-            dependencies: match[3].trim(),
-            description: match[4].trim(),
+            task: taskId,
+            assignee: inlineNodesToText(row[1]),
+            dependencies: inlineNodesToText(row[2]),
+            description: inlineNodesToText(row[3]),
         });
     }
 
@@ -277,7 +319,7 @@ export async function executePlan(planName, triageMeta, uiAPI, structuredTasks, 
             return { repairRequired: true, error: error.message };
         }
     } else {
-        await runEngineerWithPlan(planName, plan.body, uiAPI);
+        await runEngineerWithPlan(planName, plan.body, uiAPI, sessionManager);
     }
 
     if (uiAPI) {

@@ -1,6 +1,8 @@
 /**
- * @module cmd/resume
- * Resume command implementation.
+ * @module cmd/load-plan
+ * Load-plan command implementation. Loads a saved plan from disk and continues
+ * work on it (review/edit/execute), distinct from /resume which restores a
+ * previous chat session.
  */
 
 import { parseArgs as parseArgsFn } from "@std/cli/parse-args";
@@ -20,10 +22,10 @@ import {
 } from "../../shared/chat-session.js";
 import { resetTuiState as resetTuiStateFn } from "../command-helpers.js";
 import { createDirectAgentHandler as createDirectAgentHandlerFn } from "../../shared/direct-agent.js";
-export { getResumeCompletions } from "./getArgumentCompletions.js";
+export { getLoadPlanCompletions } from "./getArgumentCompletions.js";
 
 /**
- * @typedef ResumeTestDeps
+ * @typedef LoadPlanTestDeps
  * @property {typeof parseArgsFn} [parseArgs]
  * @property {typeof printCommandHelpFn} [printCommandHelp]
  * @property {typeof startInteractiveSessionFn} [startInteractiveSession]
@@ -44,7 +46,7 @@ export { getResumeCompletions } from "./getArgumentCompletions.js";
  * Restore default Router flow and input readiness after resume command work.
  *
  * @param {import('../../shared/workflow/workflow.js').UiAPI} uiAPI
- * @param {ResumeTestDeps} [deps]
+ * @param {LoadPlanTestDeps} [deps]
  */
 function restoreRouterFlow(uiAPI, deps = {}) {
     const {
@@ -60,6 +62,50 @@ function restoreRouterFlow(uiAPI, deps = {}) {
     resetTuiState(undefined, uiAPI, undefined);
     setActiveAgent("Router", createDirectAgentHandler("router"));
     uiAPI.appendSystemMessage("Switched back to Router (triage flow).", false, "Harns");
+}
+
+/**
+ * Extract a markdown section by its `## <name>` heading. Returns the body up to
+ * (but not including) the next `## ` heading, or null if not found.
+ *
+ * @param {string} body
+ * @param {string} name
+ * @returns {string | null}
+ */
+function extractSection(body, name) {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(`(^|\\n)##\\s+${escaped}\\s*\\n([\\s\\S]*?)(?=\\n##\\s|$)`, "i");
+    const match = body.match(re);
+    return match ? match[2].trim() : null;
+}
+
+/**
+ * Build a compact summary view of a plan: front matter highlights plus the
+ * Context and Objective sections (when present).
+ *
+ * @param {{ attrs: import('../../plan-store.js').PlanFrontMatter, body: string, markdown: string }} plan
+ * @returns {string}
+ */
+function buildPlanSummary(plan) {
+    const a = plan.attrs;
+    const lines = [
+        `Classification: ${a.classification}`,
+        `Complexity:     ${a.complexity}`,
+        `Status:         ${a.status}`,
+        `Summary:        ${a.summary || "(none)"}`,
+    ];
+    if (a.affectedPaths?.length) {
+        lines.push(`Affected paths:`);
+        for (const p of a.affectedPaths) lines.push(`  - ${p}`);
+    }
+
+    const sections = [];
+    const context = extractSection(plan.body, "Context");
+    if (context) sections.push(`── Context ──\n${context}`);
+    const objective = extractSection(plan.body, "Objective");
+    if (objective) sections.push(`── Objective ──\n${objective}`);
+
+    return [lines.join("\n"), ...sections].join("\n\n");
 }
 
 /**
@@ -110,13 +156,13 @@ function buildReReviewRevisionRequest(planName, feedback) {
 }
 
 /**
- * Handle `resume-plan` command.
+ * Handle `load-plan` command.
  *
  * @param {string[]} argv
- * @param {import('../registry.js').CommandContext & { __testDeps?: ResumeTestDeps }} [options]
+ * @param {import('../registry.js').CommandContext & { __testDeps?: LoadPlanTestDeps }} [options]
  */
-export async function runResumePlanCommand(argv, options = {}) {
-    const deps = /** @type {ResumeTestDeps} */ ((/** @type {any} */ (options)).__testDeps || {});
+export async function runLoadPlanCommand(argv, options = {}) {
+    const deps = /** @type {LoadPlanTestDeps} */ ((/** @type {any} */ (options)).__testDeps || {});
     const {
         parseArgs: parseArgsDep,
         printCommandHelp: printCommandHelpDep,
@@ -153,7 +199,7 @@ export async function runResumePlanCommand(argv, options = {}) {
     });
 
     if (parsedArgs.help) {
-        printCommandHelp("resume");
+        printCommandHelp("load-plan");
         return;
     }
 
@@ -177,7 +223,7 @@ export async function runResumePlanCommand(argv, options = {}) {
                 description: `${p.attrs.classification} - ${p.attrs.status}`,
             }));
 
-            const chosen = await options.uiAPI.promptSelect("Resume plan:", planOptions);
+            const chosen = await options.uiAPI.promptSelect("Load plan:", planOptions);
             if (!chosen) {
                 options.editor.setText("");
                 options.editor.disableSubmit = false;
@@ -186,7 +232,7 @@ export async function runResumePlanCommand(argv, options = {}) {
 
             planArg = chosen;
         } else {
-            console.error(`Usage: ${CLI_BIN} resume <plan-name-or-path>`);
+            console.error(`Usage: ${CLI_BIN} load-plan <plan-name-or-path>`);
             Deno.exit(1);
         }
     }
@@ -208,7 +254,7 @@ export async function runResumePlanCommand(argv, options = {}) {
     let skipRouterRestore = false;
 
     try {
-        uiAPI.appendSystemMessage(`Resuming plan: ${planArg}`, false, "Harns");
+        uiAPI.appendSystemMessage(`Loading plan: ${planArg}`, false, "Harns");
 
         const plan = await resolvePlan(CWD, planArg);
         uiAPI.appendSystemMessage(`Plan loaded: ${plan.planName}`, false, "Harns");
@@ -223,20 +269,28 @@ export async function runResumePlanCommand(argv, options = {}) {
 
         if (plan.attrs.status === "completed") {
             uiAPI.appendSystemMessage("This plan is already marked as completed.", false, "Harns");
-            const answer = await uiAPI.promptSelect("What would you like to do?", [
-                { value: "execute", label: "Re-execute the plan as-is" },
-                { value: "review", label: "Re-open for review (planner/architect)" },
-                { value: "cancel", label: "Cancel" },
-            ]);
-            if (!answer || answer === "cancel") {
-                return;
-            }
-            if (answer === "execute") {
-                await updatePlanStatus(CWD, plan.planName, "approved", plan.attrs);
-                plan.attrs.status = "approved";
-            } else {
-                await updatePlanStatus(CWD, plan.planName, "in_review", plan.attrs);
-                plan.attrs.status = "in_review";
+            while (true) {
+                const answer = await uiAPI.promptSelect("What would you like to do?", [
+                    { value: "execute", label: "Re-execute the plan as-is" },
+                    { value: "review", label: "Re-open for review (planner/architect)" },
+                    { value: "view", label: "View plan details" },
+                    { value: "cancel", label: "Cancel" },
+                ]);
+                if (!answer || answer === "cancel") {
+                    return;
+                }
+                if (answer === "view") {
+                    uiAPI.appendSystemMessage(buildPlanSummary(plan), false, "Plan");
+                    continue;
+                }
+                if (answer === "execute") {
+                    await updatePlanStatus(CWD, plan.planName, "approved", plan.attrs);
+                    plan.attrs.status = "approved";
+                } else {
+                    await updatePlanStatus(CWD, plan.planName, "in_review", plan.attrs);
+                    plan.attrs.status = "in_review";
+                }
+                break;
             }
         }
 
@@ -253,10 +307,30 @@ export async function runResumePlanCommand(argv, options = {}) {
                 if (!answer) return;
 
                 if (answer === "proceed") {
-                    const execRes = await executePlan(plan.planName, plan.attrs, uiAPI);
-                    if (execRes && execRes.repairRequired) {
+                    const MAX_REPAIR_ATTEMPTS = 2;
+                    let currentPlanName = plan.planName;
+                    /** @type {Partial<import('../../plan-store.js').PlanFrontMatter>} */
+                    let currentMeta = plan.attrs;
+                    /** @type {Array<{ task: number, assignee: string, dependencies: string, description: string }> | undefined} */
+                    let currentTasks = undefined;
+
+                    for (let attempt = 0; attempt <= MAX_REPAIR_ATTEMPTS; attempt++) {
+                        const execRes = await executePlan(currentPlanName, currentMeta, uiAPI, currentTasks);
+                        if (!execRes || !execRes.repairRequired) break;
+
+                        if (attempt === MAX_REPAIR_ATTEMPTS) {
+                            uiAPI.appendSystemMessage(
+                                `Execution failed after ${MAX_REPAIR_ATTEMPTS} repair attempts. Aborting.`,
+                                true,
+                                "Harns",
+                            );
+                            break;
+                        }
+
                         uiAPI.appendSystemMessage(
-                            `Execution failed due to task table error. Rerouting to ${agentName} for repair...`,
+                            `Execution failed due to task table error. Rerouting to ${agentName} for repair (attempt ${
+                                attempt + 1
+                            }/${MAX_REPAIR_ATTEMPTS})...`,
                             false,
                             "Harns",
                         );
@@ -266,24 +340,27 @@ export async function runResumePlanCommand(argv, options = {}) {
                             initialRequest: [
                                 `## Plan Execution Halted — Task Table Repair Required`,
                                 "",
-                                `The plan "${plan.planName}" had a malformed Tasks table: ${
+                                `The plan "${currentPlanName}" had a malformed Tasks table: ${
                                     execRes.error || "Unknown task table error"
                                 }.`,
                                 "",
                                 "Fix the table to follow (Task ID | Assignee | Dependencies | Description),",
                                 "then call plan_written again with the corrected tasks array.",
                             ].join("\n"),
-                            triageMeta: plan.attrs,
+                            triageMeta: currentMeta,
                             uiAPI,
                         });
-                        if (repairOutcome.outcome === "approved_execute" && repairOutcome.planName) {
-                            await executePlan(
-                                repairOutcome.planName,
-                                repairOutcome.triageMeta || plan.attrs,
-                                uiAPI,
-                                repairOutcome.tasks,
+                        if (repairOutcome.outcome !== "approved_execute" || !repairOutcome.planName) {
+                            uiAPI.appendSystemMessage(
+                                "Repair did not produce an approved plan. Aborting.",
+                                false,
+                                "Harns",
                             );
+                            break;
                         }
+                        currentPlanName = repairOutcome.planName;
+                        currentMeta = repairOutcome.triageMeta || currentMeta;
+                        currentTasks = repairOutcome.tasks;
                     }
                     return;
                 }
@@ -314,7 +391,7 @@ export async function runResumePlanCommand(argv, options = {}) {
                             setActiveAgent("Operator", createDirectAgentHandler("operator"), uiAPI);
                         } else {
                             uiAPI.appendSystemMessage(
-                                `Plan saved. Resume later with: ${CLI_BIN} resume ${plan.planName}`,
+                                `Plan saved. Resume later with: ${CLI_BIN} load-plan ${plan.planName}`,
                                 false,
                                 "Harns",
                             );
@@ -349,12 +426,13 @@ export async function runResumePlanCommand(argv, options = {}) {
                 }
 
                 if (answer === "view") {
-                    uiAPI.appendSystemMessage(`\n${plan.body}\n`);
+                    uiAPI.appendSystemMessage(buildPlanSummary(plan), false, "Plan");
                 }
             }
         }
 
         // Not approved — kick off the planning agent. plan_written handles review/save/execute.
+        uiAPI.appendSystemMessage(buildPlanSummary(plan), false, "Plan");
         setActiveAgent(agentName, createDirectAgentHandler(agentName), uiAPI);
 
         const outcome = await runPlanningAgent({

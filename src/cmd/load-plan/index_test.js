@@ -1,5 +1,5 @@
 import { assertEquals } from "@std/assert";
-import { runResumePlanCommand } from "./index.js";
+import { runLoadPlanCommand } from "./index.js";
 
 function makeUi() {
     /** @type {string[]} */
@@ -20,10 +20,10 @@ function makeUi() {
     };
 }
 
-Deno.test("runResumePlanCommand prints help", async () => {
+Deno.test("runLoadPlanCommand prints help", async () => {
     let helped = "";
 
-    await runResumePlanCommand(["--help"], {
+    await runLoadPlanCommand(["--help"], {
         __testDeps: /** @type {any} */ ({
             printCommandHelp: (/** @type {string} */ name) => {
                 helped = name;
@@ -32,10 +32,10 @@ Deno.test("runResumePlanCommand prints help", async () => {
         }),
     });
 
-    assertEquals(helped, "resume");
+    assertEquals(helped, "load-plan");
 });
 
-Deno.test("runResumePlanCommand empty plan list in TUI mode", async () => {
+Deno.test("runLoadPlanCommand empty plan list in TUI mode", async () => {
     const { uiAPI, messages } = makeUi();
     const editor = /** @type {import('../../shared/ui/types.js').EditorAPI} */ ({
         disableSubmit: true,
@@ -44,7 +44,7 @@ Deno.test("runResumePlanCommand empty plan list in TUI mode", async () => {
         handleInput: () => {},
     });
 
-    await runResumePlanCommand([], {
+    await runLoadPlanCommand([], {
         uiAPI,
         editor,
         __testDeps: /** @type {any} */ ({
@@ -58,12 +58,12 @@ Deno.test("runResumePlanCommand empty plan list in TUI mode", async () => {
     assertEquals(messages.includes("No plans available, start one by entering a new request"), true);
 });
 
-Deno.test("runResumePlanCommand approved plan proceed path", async () => {
+Deno.test("runLoadPlanCommand approved plan proceed path", async () => {
     const { uiAPI, selections } = makeUi();
     selections.push("proceed");
     let executed = false;
 
-    await runResumePlanCommand(["plan-a"], {
+    await runLoadPlanCommand(["plan-a"], {
         uiAPI,
         editor: /** @type {any} */ ({ disableSubmit: false, setText: () => {} }),
         __testDeps: /** @type {any} */ ({
@@ -94,11 +94,11 @@ Deno.test("runResumePlanCommand approved plan proceed path", async () => {
     assertEquals(executed, true);
 });
 
-Deno.test("runResumePlanCommand non-approved plan kicks off planning agent", async () => {
+Deno.test("runLoadPlanCommand non-approved plan kicks off planning agent", async () => {
     const { uiAPI } = makeUi();
     let lifecycleCalled = false;
 
-    await runResumePlanCommand(["plan-b"], {
+    await runLoadPlanCommand(["plan-b"], {
         uiAPI,
         editor: /** @type {any} */ ({ disableSubmit: false, setText: () => {} }),
         __testDeps: /** @type {any} */ ({
@@ -129,11 +129,11 @@ Deno.test("runResumePlanCommand non-approved plan kicks off planning agent", asy
     assertEquals(lifecycleCalled, true);
 });
 
-Deno.test("runResumePlanCommand approved plan view then cancel", async () => {
+Deno.test("runLoadPlanCommand approved plan view then cancel", async () => {
     const { uiAPI, selections, messages } = makeUi();
     selections.push("view", null);
 
-    await runResumePlanCommand(["plan-c"], {
+    await runLoadPlanCommand(["plan-c"], {
         uiAPI,
         editor: /** @type {any} */ ({ disableSubmit: false, setText: () => {} }),
         __testDeps: /** @type {any} */ ({
@@ -142,7 +142,7 @@ Deno.test("runResumePlanCommand approved plan view then cancel", async () => {
                 Promise.resolve({
                     planName: "plan-c",
                     path: "plans/plan-c.md",
-                    body: "plan body content",
+                    body: "## Context\nThe quick brown fox.\n\n## Objective\nJump over.\n",
                     attrs: {
                         classification: "FEATURE",
                         complexity: "LOW",
@@ -156,17 +156,18 @@ Deno.test("runResumePlanCommand approved plan view then cancel", async () => {
         }),
     });
 
-    assertEquals(messages.some((m) => m.includes("plan body content")), true);
-    assertEquals(messages.some((m) => m.includes("Resume canceled")), false);
+    assertEquals(messages.some((m) => m.includes("The quick brown fox")), true);
+    assertEquals(messages.some((m) => m.includes("Jump over")), true);
+    assertEquals(messages.some((m) => m.includes("Load canceled")), false);
 });
 
-Deno.test("runResumePlanCommand approved review approves directly via submitPlanForReview", async () => {
+Deno.test("runLoadPlanCommand approved review approves directly via submitPlanForReview", async () => {
     const { uiAPI, selections } = makeUi();
     selections.push("review");
     let submitCalled = false;
     let executed = false;
 
-    await runResumePlanCommand(["plan-d"], {
+    await runLoadPlanCommand(["plan-d"], {
         uiAPI,
         editor: /** @type {any} */ ({ disableSubmit: false, setText: () => {} }),
         __testDeps: /** @type {any} */ ({
@@ -203,12 +204,12 @@ Deno.test("runResumePlanCommand approved review approves directly via submitPlan
     assertEquals(executed, false);
 });
 
-Deno.test("runResumePlanCommand approved review kicks off planner on denial", async () => {
+Deno.test("runLoadPlanCommand approved review kicks off planner on denial", async () => {
     const { uiAPI, selections } = makeUi();
     selections.push("review");
     let plannerCalled = false;
 
-    await runResumePlanCommand(["plan-d2"], {
+    await runLoadPlanCommand(["plan-d2"], {
         uiAPI,
         editor: /** @type {any} */ ({ disableSubmit: false, setText: () => {} }),
         __testDeps: /** @type {any} */ ({
@@ -240,12 +241,12 @@ Deno.test("runResumePlanCommand approved review kicks off planner on denial", as
     assertEquals(plannerCalled, true);
 });
 
-Deno.test("runResumePlanCommand approved proceed with repair reroutes to planner", async () => {
+Deno.test("runLoadPlanCommand approved proceed with repair reroutes to planner", async () => {
     const { uiAPI, selections, messages } = makeUi();
     selections.push("proceed");
     let plannerCalled = false;
 
-    await runResumePlanCommand(["plan-e"], {
+    await runLoadPlanCommand(["plan-e"], {
         uiAPI,
         editor: /** @type {any} */ ({ disableSubmit: false, setText: () => {} }),
         __testDeps: /** @type {any} */ ({
@@ -283,7 +284,7 @@ Deno.test("runResumePlanCommand approved proceed with repair reroutes to planner
     );
 });
 
-Deno.test("runResumePlanCommand completed plan execute path re-executes", async () => {
+Deno.test("runLoadPlanCommand completed plan execute path re-executes", async () => {
     const { uiAPI, selections } = makeUi();
     // First select: completed-plan menu → execute. Second select: approved-block → proceed.
     selections.push("execute", "proceed");
@@ -291,7 +292,7 @@ Deno.test("runResumePlanCommand completed plan execute path re-executes", async 
     /** @type {string | null} */
     let statusUpdated = null;
 
-    await runResumePlanCommand(["plan-completed-exec"], {
+    await runLoadPlanCommand(["plan-completed-exec"], {
         uiAPI,
         editor: /** @type {any} */ ({ disableSubmit: false, setText: () => {} }),
         __testDeps: /** @type {any} */ ({
@@ -331,14 +332,14 @@ Deno.test("runResumePlanCommand completed plan execute path re-executes", async 
     assertEquals(executed, true);
 });
 
-Deno.test("runResumePlanCommand completed plan review path resets to in_review", async () => {
+Deno.test("runLoadPlanCommand completed plan review path resets to in_review", async () => {
     const { uiAPI, selections } = makeUi();
     selections.push("review");
     let lifecycleCalled = false;
     /** @type {string | null} */
     let statusUpdated = null;
 
-    await runResumePlanCommand(["plan-completed-review"], {
+    await runLoadPlanCommand(["plan-completed-review"], {
         uiAPI,
         editor: /** @type {any} */ ({ disableSubmit: false, setText: () => {} }),
         __testDeps: /** @type {any} */ ({
@@ -378,14 +379,14 @@ Deno.test("runResumePlanCommand completed plan review path resets to in_review",
     assertEquals(lifecycleCalled, true);
 });
 
-Deno.test("runResumePlanCommand completed plan cancel returns without changes", async () => {
+Deno.test("runLoadPlanCommand completed plan cancel returns without changes", async () => {
     const { uiAPI, selections } = makeUi();
     selections.push("cancel");
     let executed = false;
     let lifecycleCalled = false;
     let statusUpdateCalls = 0;
 
-    await runResumePlanCommand(["plan-completed-cancel"], {
+    await runLoadPlanCommand(["plan-completed-cancel"], {
         uiAPI,
         editor: /** @type {any} */ ({ disableSubmit: false, setText: () => {} }),
         __testDeps: /** @type {any} */ ({
@@ -426,9 +427,9 @@ Deno.test("runResumePlanCommand completed plan cancel returns without changes", 
     assertEquals(lifecycleCalled, false);
 });
 
-Deno.test("runResumePlanCommand starts interactive session when ui missing", async () => {
+Deno.test("runLoadPlanCommand starts interactive session when ui missing", async () => {
     let started = false;
-    await runResumePlanCommand(["plan-f"], {
+    await runLoadPlanCommand(["plan-f"], {
         __testDeps: /** @type {any} */ ({
             parseArgs: () => ({ help: false, _: ["plan-f"] }),
             startInteractiveSession: () => {
@@ -441,12 +442,12 @@ Deno.test("runResumePlanCommand starts interactive session when ui missing", asy
     assertEquals(started, true);
 });
 
-Deno.test("runResumePlanCommand keeps planner active when lifecycle canceled", async () => {
+Deno.test("runLoadPlanCommand keeps planner active when lifecycle canceled", async () => {
     const { uiAPI } = makeUi();
     /** @type {string[]} */
     const activeAgents = [];
 
-    await runResumePlanCommand(["plan-h"], {
+    await runLoadPlanCommand(["plan-h"], {
         uiAPI,
         editor: /** @type {any} */ ({ disableSubmit: false, setText: () => {} }),
         __testDeps: /** @type {any} */ ({
@@ -477,12 +478,12 @@ Deno.test("runResumePlanCommand keeps planner active when lifecycle canceled", a
     assertEquals(activeAgents.includes("Router"), false);
 });
 
-Deno.test("runResumePlanCommand keeps planner active when agent ends without plan_written", async () => {
+Deno.test("runLoadPlanCommand keeps planner active when agent ends without plan_written", async () => {
     const { uiAPI } = makeUi();
     /** @type {string[]} */
     const activeAgents = [];
 
-    await runResumePlanCommand(["plan-i"], {
+    await runLoadPlanCommand(["plan-i"], {
         uiAPI,
         editor: /** @type {any} */ ({ disableSubmit: false, setText: () => {} }),
         __testDeps: /** @type {any} */ ({
@@ -511,12 +512,12 @@ Deno.test("runResumePlanCommand keeps planner active when agent ends without pla
     assertEquals(activeAgents.includes("Router"), false);
 });
 
-Deno.test("runResumePlanCommand restores router flow after lifecycle saves a plan", async () => {
+Deno.test("runLoadPlanCommand restores router flow after lifecycle saves a plan", async () => {
     const { uiAPI, messages } = makeUi();
     /** @type {string[]} */
     const restoredAgents = [];
 
-    await runResumePlanCommand(["plan-g"], {
+    await runLoadPlanCommand(["plan-g"], {
         uiAPI,
         editor: /** @type {any} */ ({ disableSubmit: false, setText: () => {} }),
         __testDeps: /** @type {any} */ ({

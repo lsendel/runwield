@@ -11,7 +11,7 @@ import { runHelpCommand } from "./help/index.js";
 import { getAgentCompletions, runAgentsCommand } from "./agents/index.js";
 import { getModelCompletions, runModelsCommand } from "./models/index.js";
 import { runQuitCommand } from "./quit/index.js";
-import { getResumeCompletions, runResumePlanCommand } from "./resume-plan/index.js";
+import { getLoadPlanCompletions, runLoadPlanCommand } from "./load-plan/index.js";
 import { runExportCommand } from "./export/index.js";
 import { runNewCommand } from "./new/index.js";
 import { runSessionCommand } from "./session/index.js";
@@ -115,23 +115,23 @@ export const commandRegistry = {
         isCli: false,
         getArgumentCompletions: getModelCompletions,
     },
-    [COMMAND_NAMES.RESUME_PLAN]: {
-        name: COMMAND_NAMES.RESUME_PLAN,
-        displayName: "Resume Plan",
-        description: "Resume a saved plan",
-        summary: "Resume work from a saved plan by name or file path.",
+    [COMMAND_NAMES.LOAD_PLAN]: {
+        name: COMMAND_NAMES.LOAD_PLAN,
+        displayName: "Load Plan",
+        description: "Load and continue a saved plan",
+        summary: "Load a saved plan by name or file path and continue work on it.",
         usage: [
-            `${bin("resume-plan <plan-name>")}`,
-            `${bin("resume-plan plans/<plan>.md")}`,
-            `${bin("resume-plan --help")}`,
+            `${bin("load-plan <plan-name>")}`,
+            `${bin("load-plan plans/<plan>.md")}`,
+            `${bin("load-plan --help")}`,
         ],
         notes: [
             "If the plan is approved, you can proceed, re-open review, or inspect details.",
         ],
-        execute: runResumePlanCommand,
+        execute: runLoadPlanCommand,
         isSlash: true,
         isCli: true,
-        getArgumentCompletions: getResumeCompletions,
+        getArgumentCompletions: getLoadPlanCompletions,
     },
     [COMMAND_NAMES.RESUME]: {
         name: COMMAND_NAMES.RESUME,

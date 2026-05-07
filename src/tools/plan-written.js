@@ -17,20 +17,12 @@ import { Type } from "@mariozechner/pi-ai";
 import { defineTool } from "@mariozechner/pi-coding-agent";
 import { CLI_BIN, CWD, PLANS_DIR_NAME } from "../constants.js";
 import { loadPlan } from "../plan-store.js";
+import { extractTasks } from "../shared/workflow/workflow.js";
 
 /**
  * @typedef {{
- *   task: number,
- *   assignee: string,
- *   dependencies: string,
- *   description: string
- * }} PlanTask
- */
-
-/**
- * @typedef {{
- *   classification?: string,
- *   complexity?: string,
+ *   classification?: "QUICK_FIX" | "FEATURE" | "PROJECT",
+ *   complexity?: "LOW" | "MEDIUM" | "HIGH",
  *   summary?: string,
  *   affectedPaths?: string[]
  * }} TriageMeta
@@ -40,19 +32,6 @@ const TOOL_PARAMS = Type.Object({
     planName: Type.String({
         description: "Plan filename without extension (kebab-case preferred), e.g. implement-memory-system",
     }),
-    tasks: Type.Optional(Type.Array(
-        Type.Object({
-            task: Type.Number({ description: "Unique task ID (e.g. 1)" }),
-            assignee: Type.String({ description: "Assigned agent role, one of: engineer, doc-writer, tester" }),
-            dependencies: Type.String({
-                description: "Comma-separated list of prerequisite task IDs, or empty string if none",
-            }),
-            description: Type.String({ description: "What needs to be done in this task" }),
-        }),
-        {
-            description: "Required for PROJECT plans. Array of tasks reflecting the markdown Tasks table.",
-        },
-    )),
 });
 
 /**
@@ -140,7 +119,6 @@ export function createPlanWrittenTool(
         parameters: TOOL_PARAMS,
         async execute(_toolCallId, params, _signal, _onUpdate, _ctx) {
             const planName = String(params.planName || "").replace(/\.md$/i, "").trim();
-            const structuredTasks = /** @type {PlanTask[] | undefined} */ (params.tasks);
 
             if (!planName) {
                 return textResult(
@@ -164,14 +142,19 @@ export function createPlanWrittenTool(
 
             const effectiveMeta = await resolveTriageMeta(triageMeta, planName);
 
-            if (
-                effectiveMeta.classification === "PROJECT" &&
-                (!structuredTasks || structuredTasks.length === 0)
-            ) {
-                return textResult(
-                    "plan_written: PROJECT plans require a non-empty `tasks` array. " +
-                        "Add tasks (each with task id, assignee, dependencies, description) and call plan_written again.",
-                );
+            // PROJECT plans must have a parseable Tasks table. Validate up-front so the
+            // agent can fix the table before the user is dragged into review.
+            if (effectiveMeta.classification === "PROJECT") {
+                try {
+                    const planMd = await Deno.readTextFile(planPath);
+                    extractTasks(planMd);
+                } catch (e) {
+                    const error = e instanceof Error ? e.message : String(e);
+                    return textResult(
+                        `plan_written: could not parse the Tasks table in plans/${planName}.md: ${error}\n` +
+                            "Fix the markdown table (Task | Assignee | Dependencies | Description) and call plan_written again.",
+                    );
+                }
             }
 
             uiAPI?.appendSystemMessage(`Plan declared: plans/${planName}.md`, false, "Harns");
@@ -209,7 +192,7 @@ export function createPlanWrittenTool(
             }
 
             const action = effectiveMeta.classification === "PROJECT"
-                ? await askApprovalWithTasks(planName, uiAPI, structuredTasks)
+                ? await askApprovalWithTasks(planName, uiAPI)
                 : await askPostApproval(planName, uiAPI);
 
             if (action !== "proceed") {
@@ -227,7 +210,7 @@ export function createPlanWrittenTool(
 
             return textResult(
                 `Plan "${planName}" approved for execution. Your role as ${agentName} is complete. Do not generate any further text.`,
-                { ...params, outcome: "approved_execute", planName, tasks: structuredTasks, triageMeta: effectiveMeta },
+                { ...params, outcome: "approved_execute", planName, triageMeta: effectiveMeta },
                 true,
             );
         },

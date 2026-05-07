@@ -77,12 +77,12 @@ Before drafting, read that file and follow its structure exactly.
 
 Front matter is mandatory and must be parseable by Harns plan parsing. Include at least:
 
-- `classification` (FEATURE)
+- `classification` FEATURE
 - `complexity` (LOW|MEDIUM|HIGH)
 - `summary`
 - `affectedPaths` (array)
 - `createdAt` (ISO timestamp)
-- `status` (draft|in_review|approved|feedback)
+- `status` draft
 
 - Keep it execution-ready but lightweight.
 - Prefer checklist steps over rigid task tables.
@@ -102,10 +102,6 @@ Use this tool when requirements are ambiguous or there are multiple valid implem
 ## Important Rules
 
 - You MUST write the plan file to `plans/<name>.md` before declaring it.
-- Call `plan_written` only when the plan is ready for user review. It is the **final action** of your turn — do not
-  generate text after it.
-- Asking a free-form question (without any tool call) is allowed and expected when something needs clarification you
-  cannot resolve via `user_interview`. The conversation continues on the user's next message.
 - The plan must be detailed enough for an engineer agent to execute without further clarification.
 - Respect existing code patterns — follow the project's conventions.
 - When exploring, prefer reading specific files over broad directory listing (the Router already did broad exploration).

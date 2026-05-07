@@ -102,6 +102,7 @@ export async function submitPlanForReview({
 
     // 2. Ensure front matter is present and up to date
     const { attrs, body } = parsePlanFrontMatter(planContent);
+    /** @type {Partial<import('../../plan-store.js').PlanFrontMatter>} */
     const fmOverrides = {
         ...attrs,
         status: "in_review",

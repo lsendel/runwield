@@ -1,7 +1,7 @@
 import { assertEquals } from "@std/assert";
 import { getAgentCompletions } from "../agents/getArgumentCompletions.js";
 import { getModelCompletions } from "../models/getArgumentCompletions.js";
-import { getResumeCompletions } from "../resume-plan/getArgumentCompletions.js";
+import { getLoadPlanCompletions } from "../load-plan/getArgumentCompletions.js";
 
 Deno.test("getAgentCompletions includes router", async () => {
     const items = await getAgentCompletions("ro");
@@ -13,7 +13,7 @@ Deno.test("getModelCompletions can find by provider prefix", async () => {
     assertEquals(items.length > 0, true);
 });
 
-Deno.test("getResumeCompletions handles missing plans dir", async () => {
-    const items = await getResumeCompletions("anything");
+Deno.test("getLoadPlanCompletions handles missing plans dir", async () => {
+    const items = await getLoadPlanCompletions("anything");
     assertEquals(Array.isArray(items), true);
 });

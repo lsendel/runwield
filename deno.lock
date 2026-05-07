@@ -25,6 +25,7 @@
     "npm:chalk@*": "5.6.2",
     "npm:chalk@^5.4.1": "5.6.2",
     "npm:proper-lockfile@*": "4.1.2",
+    "npm:quikdown@^1.2.12": "1.2.12",
     "npm:strip-ansi@*": "7.2.0",
     "npm:strip-ansi@^7.1.2": "7.2.0",
     "npm:turndown@^7.2.4": "7.2.4"
@@ -1717,6 +1718,9 @@
         "once"
       ]
     },
+    "quikdown@1.2.12": {
+      "integrity": "sha512-WLIjK5YRt/hX1ruUmJIlzwQnyFavJhDB6js51vxd/ZrDJ+Rhp8oQslKC0WyndzhXWXfbxCiYXXri4lP3pJ3jQA=="
+    },
     "require-directory@2.1.1": {
       "integrity": "sha512-fGxEI7+wsG9xrvdjsrlmL22OMTTiHRwAMroiEeMgq8gzoLC/PQr7RsRDSTLUg/bZAZtF+TVIkHc6/4RIKrui+Q=="
     },
@@ -1950,6 +1954,7 @@
       "npm:@mariozechner/pi-tui@0.73",
       "npm:@sinclair/typebox@~0.34.41",
       "npm:chalk@^5.4.1",
+      "npm:quikdown@^1.2.12",
       "npm:strip-ansi@^7.1.2",
       "npm:turndown@^7.2.4"
     ]

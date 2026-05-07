@@ -74,7 +74,7 @@ Deno.test("extractTasks parses markdown table with extra whitespace", () => {
 
 Deno.test("extractTasks throws error when section missing", () => {
     const content = `## Plan\nNo tasks here.`;
-    assertThrows(() => extractTasks(content), Error, "Tasks table not found");
+    assertThrows(() => extractTasks(content), Error, "Tasks section not found");
 });
 
 Deno.test("extractTasks throws error when table is empty", () => {

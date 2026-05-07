@@ -5,7 +5,7 @@
  * Usage:
  *   hns "<user request>"
  *   hns router "<user request>"
- *   hns resume <plan-name-or-path>
+ *   hns load-plan <plan-name-or-path>
  *   hns plans
  *   hns sleep
  *   hns --help

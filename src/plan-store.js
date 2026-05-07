@@ -42,14 +42,14 @@ export async function ensurePlansDir(cwd) {
 
 /**
  * @typedef {Object} PlanFrontMatter
- * @property {string} classification - QUICK_FIX | FEATURE | PROJECT
- * @property {string} complexity - LOW | MEDIUM | HIGH
+ * @property {"QUICK_FIX"|"FEATURE"|"PROJECT"} classification
+ * @property {"LOW"|"MEDIUM"|"HIGH"} complexity
  * @property {string} summary - Brief description of what the plan addresses
  * @property {string[]} affectedPaths - Files that will be created/modified
  * @property {string} createdAt - ISO timestamp
  * @property {string} [updatedAt] - ISO timestamp (set on revision)
- * @property {string} status - draft | in_review | approved | feedback | completed
- * @property {string} [origin] - "internal" = created by a Harns agent; "external" = a pre-existing markdown file loaded from an arbitrary path and resumed with Harns
+ * @property {"draft"|"in_review"|"approved"|"feedback"|"completed"} status
+ * @property {"internal"|"external"} [origin] - "internal" = created by a Harns agent; "external" = a pre-existing markdown file loaded from an arbitrary path and resumed with Harns
  */
 
 /**
@@ -158,7 +158,7 @@ export function parsePlanFrontMatter(markdown, opts = {}) {
             attrs: {
                 ...DEFAULT_FRONT_MATTER,
                 createdAt: new Date().toISOString(),
-                origin: missingOrigin,
+                origin: /** @type {"internal"|"external"} */ (missingOrigin),
             },
             body: markdown,
         };
@@ -267,7 +267,7 @@ function stripLeadingFrontMatterBlock(markdown) {
  *
  * @param {string} cwd
  * @param {string} planName
- * @param {string} status - draft | in_review | approved | feedback
+ * @param {PlanFrontMatter["status"]} status
  * @param {Partial<PlanFrontMatter>} [recoveryAttrs]
  * @returns {Promise<void>}
  */

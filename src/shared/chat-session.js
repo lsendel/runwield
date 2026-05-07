@@ -30,7 +30,7 @@ import { cancelActivePlanReview } from "./workflow/submit-plan.js";
 import { ensureMnemosyneBinary } from "./runtime-preflight.js";
 import { commandRegistry } from "../cmd/registry.js";
 import { getModelRegistry } from "./models/model-registry.js";
-import { initSettings, getSettingsManager } from "./settings.js";
+import { getSettingsManager, initSettings } from "./settings.js";
 import {
     clearUserModelOverride,
     getActiveAgentName,
