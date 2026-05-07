@@ -1,4 +1,5 @@
 import { assertEquals, assertMatch } from "@std/assert";
+import * as path from "@std/path";
 import { existsSync } from "node:fs";
 import { runExportCommand } from "./index.js";
 
@@ -71,7 +72,7 @@ Deno.test("runExportCommand exports jsonl from root session manager", async () =
         assertEquals(existsSync(outPath), true);
     } finally {
         if (existsSync(outPath)) {
-            await Deno.remove(outPath);
+            await Deno.remove(path.dirname(outPath), { recursive: true });
         }
     }
 });

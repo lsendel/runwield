@@ -15,6 +15,7 @@ import { getResumeCompletions, runResumePlanCommand } from "./resume-plan/index.
 import { runExportCommand } from "./export/index.js";
 import { runNewCommand } from "./new/index.js";
 import { runSessionCommand } from "./session/index.js";
+import { runShareCommand } from "./share/index.js";
 import { runResumeCommand } from "./resume/index.js";
 
 /** @param {...string} parts */
@@ -175,6 +176,22 @@ export const commandRegistry = {
             "Slash command only (interactive session).",
         ],
         execute: runSessionCommand,
+        isSlash: true,
+        isCli: false,
+    },
+    [COMMAND_NAMES.SHARE]: {
+        name: COMMAND_NAMES.SHARE,
+        displayName: "Share",
+        description: "Share current session as a secret GitHub Gist",
+        summary: "Export the current session to HTML and upload it as a secret GitHub Gist.",
+        usage: [
+            "/share",
+        ],
+        notes: [
+            "Requires GitHub CLI ('gh') to be installed and authenticated.",
+            "Saves session as a secret (private) Gist.",
+        ],
+        execute: runShareCommand,
         isSlash: true,
         isCli: false,
     },

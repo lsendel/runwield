@@ -36,12 +36,13 @@ export const COMPLEXITIES = ["LOW", "MEDIUM", "HIGH"];
 export const PLANS_DIR_NAME = "plans";
 
 /** Known CLI command names. */
-/** @type {Readonly<{ROUTER: string, AGENT: string, MODEL: string, EXPORT: string, RESUME_PLAN: string, RESUME: string, NEW: string, SESSION: string, PLANS: string, SLEEP: string, HELP: string, QUIT: string, EXIT: string}>} */
+/** @type {Readonly<{ROUTER: string, AGENT: string, MODEL: string, EXPORT: string, SHARE: string, RESUME_PLAN: string, RESUME: string, NEW: string, SESSION: string, PLANS: string, SLEEP: string, HELP: string, QUIT: string, EXIT: string}>} */
 export const COMMAND_NAMES = Object.freeze({
     ROUTER: "router",
     AGENT: "agent",
     MODEL: "model",
     EXPORT: "export",
+    SHARE: "share",
     RESUME_PLAN: "resume-plan",
     RESUME: "resume",
     NEW: "new",
