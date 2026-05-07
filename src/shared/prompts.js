@@ -6,7 +6,7 @@
 import { Container, Input, SelectList, Text } from "@mariozechner/pi-tui";
 import { getTUI } from "./tui.js";
 import { readUserInput } from "./input.js";
-import { selectListTheme, theme } from "./ui/theme.js";
+import { getSelectListTheme, theme } from "./ui/theme.js";
 
 /**
  * @returns {{ tui: import('@mariozechner/pi-tui').TUI } | null}
@@ -45,7 +45,7 @@ export async function select(title, options) {
         const selectList = new SelectList(
             options,
             Math.min(options.length, 10),
-            selectListTheme,
+            getSelectListTheme(),
         );
 
         /** @type {import('@mariozechner/pi-tui').OverlayHandle | null} */

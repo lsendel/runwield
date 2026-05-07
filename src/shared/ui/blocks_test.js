@@ -4,6 +4,10 @@ import chalk from "chalk";
 // Force chalk to produce ANSI codes in non-TTY test environment
 chalk.level = 3;
 
+// Initialize the harns theme before importing blocks (theme must be ready)
+import { initHarnsTheme } from "./theme.js";
+initHarnsTheme();
+
 import {
     AgentMessageBlock,
     PromptSelectBlock,
@@ -46,10 +50,10 @@ function assertBlockBackground(lines, w, blockName) {
 
         assertEquals(vl, w, `${blockName} line ${i}: visible length should be ${w}, got ${vl}`);
 
-        // Every line should start with a bg code
+        // Every line should start with a bg code (truecolor or 256-color)
         assertEquals(
             // deno-lint-ignore no-control-regex
-            /^\x1b\[48;2;\d+;\d+;\d+m/.test(line),
+            /^\x1b\[(?:48;2;\d+;\d+;\d+|48;5;\d+)m/.test(line),
             true,
             `${blockName} line ${i}: should start with bg ANSI code`,
         );
@@ -60,7 +64,7 @@ function assertBlockBackground(lines, w, blockName) {
             for (let p = 1; p < parts.length; p++) {
                 assertEquals(
                     // deno-lint-ignore no-control-regex
-                    /^\x1b\[48;2;\d+;\d+;\d+m/.test(parts[p]),
+                    /^\x1b\[(?:48;2;\d+;\d+;\d+|48;5;\d+)m/.test(parts[p]),
                     true,
                     `${blockName} line ${i}: bg must be re-applied after \\x1b[0m (part ${p})`,
                 );
@@ -73,7 +77,7 @@ function assertBlockBackground(lines, w, blockName) {
 
 Deno.test("StyledBlock renders full-width bg lines", () => {
     const w = 80;
-    const block = new StyledBlock("surface0", 2, 1, new Text("hello", 0, 0));
+    const block = new StyledBlock("userMessageBg", 2, 1, new Text("hello", 0, 0));
     const lines = block.render(w);
     assertBlockBackground(lines, w, "StyledBlock");
 });
@@ -85,7 +89,7 @@ Deno.test("StyledBlock handles embedded \\x1b[0m in child content", () => {
         render: () => ["before \x1b[0m after"],
         invalidate: () => {},
     };
-    const block = new StyledBlock("surface0", 2, 1, child);
+    const block = new StyledBlock("userMessageBg", 2, 1, child);
     const lines = block.render(w);
     assertBlockBackground(lines, w, "StyledBlock(with reset)");
 });
@@ -101,12 +105,18 @@ Deno.test("UserPromptBlock renders with consistent background", () => {
 
 // ─── AgentMessageBlock ───────────────────────────────────────────────────────
 
-Deno.test("AgentMessageBlock renders with consistent background", () => {
+Deno.test("AgentMessageBlock renders without background (like Pi)", () => {
     const w = 100;
     const block = new AgentMessageBlock("TestAgent");
     block.appendText("Some markdown **content** here.");
     const lines = block.render(w);
-    assertBlockBackground(lines, w, "AgentMessageBlock");
+
+    // Agent messages no longer have a bg — just verify they render without error
+    assertEquals(lines.length > 0, true, "AgentMessageBlock should produce output");
+
+    // Verify agent name is in the output
+    const plain = lines.map((l) => stripAnsi(l)).join("\n");
+    assertEquals(plain.includes("TestAgent:"), true, "Should contain agent name");
 });
 
 // ─── SystemMessageBlock ──────────────────────────────────────────────────────
@@ -125,41 +135,40 @@ Deno.test("SystemMessageBlock error renders with consistent background", () => {
     assertBlockBackground(lines, w, "SystemMessageBlock(error)");
 });
 
-Deno.test("SystemMessageBlock renders with peach heading style", () => {
+Deno.test("SystemMessageBlock renders with mdHeading heading style", () => {
     const w = 100;
     const text = "skill1, skill2";
     const header = "Loaded skills (2):";
-    const style = { headingColor: "peach" };
+    const style = { headingColor: "mdHeading" };
     const block = new SystemMessageBlock(text, false, header, style);
     const lines = block.render(w);
 
-    assertBlockBackground(lines, w, "SystemMessageBlock(peach)");
+    assertBlockBackground(lines, w, "SystemMessageBlock(mdHeading)");
 
     // StyledBlock adds padY top/bottom; content lives on the middle line(s).
     const contentLine = lines.find((l) => stripAnsi(l).trim().length > 0) || "";
     const plain = stripAnsi(contentLine).trim();
     assertEquals(plain, `${header} ${text}`, "Stripped content should be 'header text'");
 
-    // chalk.hex emits 24-bit RGB foreground codes: \x1b[38;2;R;G;Bm.
-    // We expect at least two distinct fg color codes (peach and dim).
+    // We expect at least two distinct fg color codes.
     // deno-lint-ignore no-control-regex
     const fgMatches = contentLine.match(/\x1b\[38;2;\d+;\d+;\d+m/g) || [];
     const uniqueFg = [...new Set(fgMatches)];
     assertEquals(
         uniqueFg.length >= 2,
         true,
-        "Should have at least two distinct foreground colors (peach and dim)",
+        "Should have at least two distinct foreground colors",
     );
 
-    // The peach color is #fab387 → 250;179;135. Verify it's actually rendered.
+    // The mdHeading color is peach (#fab387) → 250;179;135. Verify it's actually rendered.
     const hasPeach = fgMatches.some((m) => m === "\x1b[38;2;250;179;135m");
-    assertEquals(hasPeach, true, "Should contain the peach (250;179;135) ANSI code");
+    assertEquals(hasPeach, true, "Should contain the peach/mdHeading (250;179;135) ANSI code");
 });
 
 Deno.test("SystemMessageBlock appendText uses header and style", () => {
     const w = 100;
     const block = new SystemMessageBlock("First line");
-    block.appendText("s1", "Loaded skills (1):", { headingColor: "peach" });
+    block.appendText("s1", "Loaded skills (1):", { headingColor: "mdHeading" });
     const lines = block.render(w);
 
     assertBlockBackground(lines, w, "SystemMessageBlock(append)");
@@ -243,11 +252,11 @@ Deno.test("PromptSelectBlock renders with uniform background", () => {
     const lines = block.render(w);
     assertBlockBackground(lines, w, "PromptSelectBlock");
 
-    // All lines should use the same bg color (surface1 = #45475a → 69,71,90)
+    // All lines should use the same bg color (selectedBg = surface0 = #313244)
     const bgCodes = lines.map((line) => {
         // deno-lint-ignore no-control-regex
-        const m = line.match(/^\x1b\[48;2;(\d+;\d+;\d+)m/);
-        return m ? m[1] : null;
+        const m = line.match(/^\x1b\[(?:48;2;(\d+;\d+;\d+)|48;5;(\d+))m/);
+        return m ? (m[1] || m[2]) : null;
     });
     const uniqueBgs = [...new Set(bgCodes)];
     assertEquals(uniqueBgs.length, 1, `PromptSelectBlock should have uniform bg, got: ${uniqueBgs.join(", ")}`);
@@ -313,8 +322,8 @@ Deno.test("PromptTextBlock renders with uniform background", () => {
     // All lines should use the same bg color
     const bgCodes = lines.map((line) => {
         // deno-lint-ignore no-control-regex
-        const m = line.match(/^\x1b\[48;2;(\d+;\d+;\d+)m/);
-        return m ? m[1] : null;
+        const m = line.match(/^\x1b\[(?:48;2;(\d+;\d+;\d+)|48;5;(\d+))m/);
+        return m ? (m[1] || m[2]) : null;
     });
     const uniqueBgs = [...new Set(bgCodes)];
     assertEquals(uniqueBgs.length, 1, `PromptTextBlock should have uniform bg, got: ${uniqueBgs.join(", ")}`);

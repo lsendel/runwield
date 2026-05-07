@@ -15,7 +15,7 @@ import {
     Text,
 } from "@mariozechner/pi-tui";
 import { initTUI, stopTUI } from "./tui.js";
-import { editorTheme, imageTheme, theme } from "./ui/theme.js";
+import { getEditorTheme, imageTheme, initHarnsTheme, theme } from "./ui/theme.js";
 import { readClipboardImage } from "./clipboard.js";
 import { createUiApi } from "./ui/api.js";
 import { SpinnerBlock } from "./ui/blocks.js";
@@ -325,6 +325,7 @@ export async function startInteractiveSession(initialUserRequest, onMessage, opt
     const sessionStartedAt = rootSessionManager.getHeader()?.timestamp || new Date().toISOString();
     setActiveOnMessage(onMessage);
     await ensureMnemosyneBinary();
+    initHarnsTheme();
     const tui = initTUI();
 
     const container = new Container();
@@ -352,7 +353,7 @@ export async function startInteractiveSession(initialUserRequest, onMessage, opt
     const previewImages = new Container();
     container.addChild(previewImages);
 
-    const editor = new Editor(tui, editorTheme);
+    const editor = new Editor(tui, getEditorTheme());
     container.addChild(editor);
 
     // Footer
@@ -1071,7 +1072,7 @@ export async function startInteractiveSession(initialUserRequest, onMessage, opt
     };
 
     // User-facing prompt listing and collision warnings — boot summary block.
-    const peachStyle = { headingColor: "peach" };
+    const peachStyle = { headingColor: "mdHeading" };
     if (invokablePromptTemplates.length > 0) {
         const names = invokablePromptTemplates.map((template) => `/${template.name}`).join(", ");
         uiAPI.appendSystemMessage(

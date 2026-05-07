@@ -10,7 +10,7 @@ import {
     truncateToWidth,
     visibleWidth,
 } from "@mariozechner/pi-tui";
-import { markdownTheme, selectListTheme, theme } from "../ui/theme.js";
+import { getMarkdownTheme, getSelectListTheme, theme } from "../ui/theme.js";
 import stripAnsi from "strip-ansi";
 
 // ─── Utilities ───────────────────────────────────────────────────────────────
@@ -34,6 +34,7 @@ function formatSystemLine(text, isError, header = "", style) {
     }
 
     const headerColor = style?.headingColor || (isError ? "error" : "accent");
+    // @ts-ignore: headerColor is always a valid ThemeColor but TS can't verify dynamic strings
     const renderedHeader = theme.fg(headerColor, theme.bold(header));
 
     if (!text) return renderedHeader;
@@ -66,19 +67,22 @@ function applyBg(bgCode, line) {
 const bgCodeCache = new Map();
 
 /**
- * Get the raw ANSI background open code for a theme color name.
- * @param {string} bgColorName
+ * Get the raw ANSI background open code for a ThemeBg token.
+ * Uses the upstream theme.bg() to render a single space, then extracts
+ * the ANSI background open code from the result.
+ * @param {string} bgTokenName - a ThemeBg token (e.g. "userMessageBg")
  * @returns {string}
  */
-function getBgCode(bgColorName) {
-    const cached = bgCodeCache.get(bgColorName);
+function getBgCode(bgTokenName) {
+    const cached = bgCodeCache.get(bgTokenName);
     if (cached !== undefined) return cached;
     // Render a single space with the bg to extract the open code
-    const rendered = theme.bg(bgColorName, " ");
+    // @ts-ignore: bgTokenName is always a valid ThemeBg but TS can't verify dynamic strings
+    const rendered = theme.bg(bgTokenName, " ");
     // deno-lint-ignore no-control-regex
-    const match = rendered.match(/^(\x1b\[48;2;\d+;\d+;\d+m)/);
+    const match = rendered.match(/^(\x1b\[(?:48;2;\d+;\d+;\d+|48;5;\d+)m)/);
     const code = match ? match[1] : "";
-    bgCodeCache.set(bgColorName, code);
+    bgCodeCache.set(bgTokenName, code);
     return code;
 }
 
@@ -91,18 +95,18 @@ function getBgCode(bgColorName) {
  */
 export class StyledBlock {
     /**
-     * @param {string} bgColor - theme background color name (e.g. "surface0")
+     * @param {string} bgToken - ThemeBg token name (e.g. "userMessageBg", "selectedBg")
      * @param {number} paddingX - horizontal padding (left and right)
      * @param {number} paddingY - vertical padding (top and bottom empty lines)
      * @param {{ render: (w: number) => string[], invalidate?: () => void } | null | undefined} child
      */
-    constructor(bgColor, paddingX, paddingY, child) {
-        this.bgColor = bgColor;
+    constructor(bgToken, paddingX, paddingY, child) {
+        this.bgToken = bgToken;
         this.paddingX = paddingX;
         this.paddingY = paddingY;
         this.child = child;
         /** @type {string} */
-        this._bgCode = getBgCode(bgColor);
+        this._bgCode = getBgCode(bgToken);
     }
 
     invalidate() {
@@ -147,7 +151,7 @@ export class UserPromptBlock {
     constructor(text) {
         this.content = new Container();
         this.content.addChild(new Text(theme.fg("text", text), 0, 0));
-        this.block = new StyledBlock("surface0", 2, 1, this.content);
+        this.block = new StyledBlock("userMessageBg", 2, 1, this.content);
     }
 
     invalidate() {
@@ -162,6 +166,7 @@ export class UserPromptBlock {
 
 /**
  * Agent Message Block (Markdown).
+ * Renders without a background, matching the upstream Pi style.
  */
 export class AgentMessageBlock {
     /** @param {string} agentName */
@@ -173,11 +178,9 @@ export class AgentMessageBlock {
         }
 
         this.currentText = "";
-        this.markdown = new Markdown("", 0, 0, markdownTheme);
+        this.markdown = new Markdown("", 0, 0, getMarkdownTheme());
         this.container.addChild(this.markdown);
         this.container.addChild(new Spacer(1));
-
-        this.block = new StyledBlock("crust", 2, 1, this.container);
     }
 
     /** @param {string} delta */
@@ -188,12 +191,12 @@ export class AgentMessageBlock {
     }
 
     invalidate() {
-        this.block.invalidate();
+        this.container.invalidate();
     }
 
     /** @param {number} w */
     render(w) {
-        return this.block.render(w);
+        return this.container.render(w);
     }
 }
 
@@ -212,7 +215,7 @@ export class SystemMessageBlock {
         this.isError = isError;
         this.style = style;
         this.container.addChild(new Text(formatSystemLine(text, isError, header, style), 0, 0));
-        this.block = new StyledBlock("mantle", 2, 1, this.container);
+        this.block = new StyledBlock("customMessageBg", 2, 1, this.container);
     }
 
     /**
@@ -255,7 +258,7 @@ export class ToolExecutionBlock {
         this.bodyText = "";
         this.isError = false;
         this.startTime = Date.now();
-        this.bgColor = "toolBg";
+        this.bgToken = "toolPendingBg";
 
         // Header text
         const commandText = argsStr.trim();
@@ -281,7 +284,7 @@ export class ToolExecutionBlock {
             : lines;
         const renderedText = shown.join("\n");
         this.bodyTextComponent.setText(
-            this.isError ? theme.fg("text", renderedText) : theme.fg("subtext0", renderedText),
+            this.isError ? theme.fg("text", renderedText) : theme.fg("toolOutput", renderedText),
         );
     }
 
@@ -306,7 +309,9 @@ export class ToolExecutionBlock {
     endExecution(isError, durationMs) {
         this.isError = isError;
         if (isError) {
-            this.bgColor = "toolErrorBg";
+            this.bgToken = "toolErrorBg";
+        } else {
+            this.bgToken = "toolSuccessBg";
         }
         this.durationStr = `Took ${(durationMs / 1000).toFixed(1)}s`;
         this.updateBodyText();
@@ -316,7 +321,7 @@ export class ToolExecutionBlock {
 
     /** @param {number} w */
     render(w) {
-        const bg = this.bgColor;
+        const bg = this.bgToken;
         const paddingX = 2;
         const innerW = Math.max(0, w - paddingX * 2);
 
@@ -438,22 +443,22 @@ export class PromptSelectBlock {
 
         // Header
         const headerText = theme.fg("text", theme.bold(promptTitle));
-        this.header = new StyledBlock("surface1", 2, 1, new Text(headerText, 0, 0));
+        this.header = new StyledBlock("selectedBg", 2, 1, new Text(headerText, 0, 0));
         this.container.addChild(this.header);
 
         // Search input
         this.input = new Input();
-        this.searchBlock = new StyledBlock("surface1", 2, 0, this.input);
+        this.searchBlock = new StyledBlock("selectedBg", 2, 0, this.input);
         this.container.addChild(this.searchBlock);
 
         // Body with SelectList
-        this.list = new SearchableSelectList(items, Math.min(items.length, 10), selectListTheme);
-        this.bodyBlock = new StyledBlock("surface1", 2, 0, this.list);
+        this.list = new SearchableSelectList(items, Math.min(items.length, 10), getSelectListTheme());
+        this.bodyBlock = new StyledBlock("selectedBg", 2, 0, this.list);
         this.container.addChild(this.bodyBlock);
 
         // Footer with hint
         const hintText = hint || "Type to search, arrows to navigate, Enter to select, Esc to cancel";
-        this.footer = new StyledBlock("surface1", 2, 1, new Text(theme.fg("dim", hintText), 0, 0));
+        this.footer = new StyledBlock("selectedBg", 2, 1, new Text(theme.fg("dim", hintText), 0, 0));
         this.container.addChild(this.footer);
 
         this.settled = false;
@@ -485,7 +490,7 @@ export class PromptSelectBlock {
         this.container.children = [];
         if (value !== null) {
             const summaryText = theme.fg("text", value);
-            this.container.addChild(new StyledBlock("surface1", 2, 1, new Text(summaryText, 0, 0)));
+            this.container.addChild(new StyledBlock("selectedBg", 2, 1, new Text(summaryText, 0, 0)));
         }
         this.invalidate();
     }
@@ -543,17 +548,17 @@ export class PromptTextBlock {
 
         // Header
         const headerText = theme.fg("text", theme.bold(promptTitle));
-        this.header = new StyledBlock("surface1", 2, 1, new Text(headerText, 0, 0));
+        this.header = new StyledBlock("selectedBg", 2, 1, new Text(headerText, 0, 0));
         this.container.addChild(this.header);
 
         // Body with Input
         this.input = new Input();
-        this.bodyBlock = new StyledBlock("surface1", 2, 0, this.input);
+        this.bodyBlock = new StyledBlock("selectedBg", 2, 0, this.input);
         this.container.addChild(this.bodyBlock);
 
         // Footer with hint
         const hintText = hint || "Enter text and press Enter, Esc to cancel";
-        this.footer = new StyledBlock("surface1", 2, 1, new Text(theme.fg("dim", hintText), 0, 0));
+        this.footer = new StyledBlock("selectedBg", 2, 1, new Text(theme.fg("dim", hintText), 0, 0));
         this.container.addChild(this.footer);
 
         this.settled = false;
@@ -570,7 +575,7 @@ export class PromptTextBlock {
         this.container.children = [];
         if (value !== null) {
             const summaryText = theme.fg("text", value);
-            this.container.addChild(new StyledBlock("surface1", 2, 1, new Text(summaryText, 0, 0)));
+            this.container.addChild(new StyledBlock("selectedBg", 2, 1, new Text(summaryText, 0, 0)));
         }
         this.invalidate();
     }
