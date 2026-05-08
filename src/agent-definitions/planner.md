@@ -1,6 +1,6 @@
 ---
 name: planner
-model: ollama-cloud/gemma4:31b-cloud
+model: openrouter/inclusionai/ring-2.6-1t:free
 description: "Feature planning agent that produces iterative, focused plans for single features. Inspired by Plannotator's planning approach."
 tools:
     - read

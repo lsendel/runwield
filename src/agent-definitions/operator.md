@@ -1,6 +1,6 @@
 ---
 name: operator
-model: ollama-cloud/gemma4:31b-cloud
+model: openrouter/inclusionai/ring-2.6-1t:free
 description: "Operational agent that executes small tasks — commits, fixes, config changes, and anything that doesn't need a plan."
 tools:
     - read

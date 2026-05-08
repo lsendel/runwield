@@ -12,3 +12,4 @@
       short. Surface archived plans only on explicit request.
 - [ ] Optional plan-review step after `completed`: add an `in_review` state between approved-execution and `completed`
       so a code-review/plan-review pass can sign off before the plan is closed.
+- [ ] Look at mastra framework to see if we can incorporate it for better plan management and execution control.

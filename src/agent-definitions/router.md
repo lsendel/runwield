@@ -1,6 +1,6 @@
 ---
 name: router
-model: ollama-cloud/gemma4:31b-cloud
+model: openrouter/inclusionai/ring-2.6-1t:free
 description: "Triage agent that classifies user requests and explores the codebase."
 tools:
     - read
